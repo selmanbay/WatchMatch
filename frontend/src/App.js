@@ -1,10 +1,19 @@
 import React, { useEffect, useState } from "react";
 
 function App() {
-    const [movies, setMovies] = useState([]);      // film listesi
-    const [loading, setLoading] = useState(true);  // yüklenme durumu
-    const [error, setError] = useState(null);      // hata durumu
-    const [newMovie, setNewMovie] = useState({     // yeni film formu
+    // Kullanıcı bilgisi (login olmuş mu?)
+    const [user, setUser] = useState(null);
+
+    // Kullanıcı login mi register mi yapıyor
+    const [authMode, setAuthMode] = useState("login");
+
+    // Login/Register formu için bilgiler
+    const [credentials, setCredentials] = useState({ email: "", password: "" });
+
+    // Filmler ve yeni film formu
+    const [movies, setMovies] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [newMovie, setNewMovie] = useState({
         title: "",
         genre: "",
         releaseYear: "",
@@ -13,26 +22,48 @@ function App() {
         posterUrl: ""
     });
 
-    // Filmleri çek
+    // Eğer kullanıcı login olduysa film listesini çek
     useEffect(() => {
-        fetch("http://localhost:8080/api/movies")
-            .then((response) => {
-                if (!response.ok) throw new Error("Veri çekilemedi");
-                return response.json();
+        if (user !== null) {  // kullanıcı giriş yaptıysa
+            setLoading(true);
+
+            fetch("http://localhost:8080/api/movies")
+                .then((res) => res.json())
+                .then((data) => {
+                    setMovies(data);
+                    setLoading(false);
+                })
+                .catch(() => {
+                    setLoading(false);
+                    alert("❌ Filmler alınamadı!");
+                });
+        }
+    }, [user]);
+
+    // Kullanıcı login/register işlemi
+    const handleAuth = (e) => {
+        e.preventDefault();
+
+        fetch(`http://localhost:8080/api/users/${authMode}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(credentials)
+        })
+            .then((res) => {
+                if (!res.ok) throw new Error("❌ İşlem başarısız!");
+                return res.json();
             })
             .then((data) => {
-                setMovies(data);
-                setLoading(false);
+                setUser(data);
+                alert(authMode === "login" ? "✅ Giriş başarılı!" : "✅ Kayıt başarılı!");
             })
-            .catch((err) => {
-                setError(err.message);
-                setLoading(false);
-            });
-    }, []);
+            .catch((err) => alert(err.message));
+    };
 
-    // Yeni film ekle
+    // Yeni film ekleme
     const handleAddMovie = (e) => {
         e.preventDefault();
+
         fetch("http://localhost:8080/api/movies", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -40,84 +71,105 @@ function App() {
         })
             .then((res) => res.json())
             .then((data) => {
-                setMovies([...movies, data]);
+                setMovies([...movies, data]); // listeye yeni filmi ekle
+                // formu temizle
                 setNewMovie({ title: "", genre: "", releaseYear: "", rating: "", description: "", posterUrl: "" });
             })
-            .catch((err) => alert("Film eklenemedi: " + err));
+            .catch(() => alert("❌ Film eklenemedi!"));
     };
 
-    if (loading) return <p>Yükleniyor...</p>;
-    if (error) return <p>Hata: {error}</p>;
+    // ================== SAYFA GÖRÜNÜMLERİ ==================
 
-    return (
-        <div style={{ padding: "20px" }}>
-            <h1>🎬 Film Listesi</h1>
+    // Eğer kullanıcı login değilse login/register sayfası göster
+    if (user === null) {
+        return (
+            <div style={{ padding: "20px" }}>
+                <h1>{authMode === "login" ? "🔑 Giriş Yap" : "📝 Kayıt Ol"}</h1>
 
-            {/* Film Listesi */}
-            <ul>
-                {movies.length === 0 ? (
-                    <li>Hiç film bulunamadı</li>
+                <form onSubmit={handleAuth}>
+                    <input
+                        type="text"
+                        placeholder="Kullanıcı adı"
+                        value={credentials.username}
+                        onChange={(e) => setCredentials({ ...credentials, username: e.target.value })}
+                        required
+                    />
+                    <input
+                        type="password"
+                        placeholder="Şifre"
+                        value={credentials.password}
+                        onChange={(e) => setCredentials({ ...credentials, password: e.target.value })}
+                        required
+                    />
+                    <button type="submit">
+                        {authMode === "login" ? "Giriş Yap" : "Kayıt Ol"}
+                    </button>
+                </form>
+
+                <p>
+                    {authMode === "login" ? "Hesabın yok mu?" : "Zaten hesabın var mı?"}
+                    <button
+                        onClick={() => setAuthMode(authMode === "login" ? "register" : "login")}
+                    >
+                        {authMode === "login" ? "Kayıt Ol" : "Giriş Yap"}
+                    </button>
+                </p>
+            </div>
+        );
+    }
+    // Eğer kullanıcı login olmuşsa film sayfası göster
+    else {
+        return (
+            <div style={{ padding: "20px" }}>
+                <h1>🎬 Hoşgeldin {user.username}</h1>
+                <button onClick={() => setUser(null)}>🚪 Çıkış Yap</button>
+
+                {/* Film Listesi */}
+                <h2>Film Listesi</h2>
+                {loading ? (
+                    <p>⏳ Yükleniyor...</p>
                 ) : (
-                    movies.map((movie) => (
-                        <li key={movie.id}>
-                            <strong>{movie.title}</strong> ({movie.genre}, {movie.releaseYear}) ⭐ {movie.rating}
-                            <p>{movie.description}</p>
-                            {movie.posterUrl && <img src={movie.posterUrl} alt={movie.title} width="100" />}
-                        </li>
-                    ))
+                    <ul>
+                        {movies.length === 0 ? (
+                            <li>Hiç film bulunamadı</li>
+                        ) : (
+                            movies.map((movie) => (
+                                <li key={movie.id}>
+                                    <strong>{movie.title}</strong> ({movie.genre}, {movie.releaseYear}) ⭐ {movie.rating}
+                                    <p>{movie.description}</p>
+                                    {movie.posterUrl && <img src={movie.posterUrl} alt={movie.title} width="100" />}
+                                </li>
+                            ))
+                        )}
+                    </ul>
                 )}
-            </ul>
 
-            <hr />
-
-            {/* Film Ekleme Formu */}
-            <h2>Yeni Film Ekle</h2>
-            <form onSubmit={handleAddMovie}>
-                <input
-                    type="text"
-                    placeholder="Başlık"
-                    value={newMovie.title}
-                    onChange={(e) => setNewMovie({ ...newMovie, title: e.target.value })}
-                    required
-                />
-                <input
-                    type="text"
-                    placeholder="Tür"
-                    value={newMovie.genre}
-                    onChange={(e) => setNewMovie({ ...newMovie, genre: e.target.value })}
-                    required
-                />
-                <input
-                    type="number"
-                    placeholder="Yıl"
-                    value={newMovie.releaseYear}
-                    onChange={(e) => setNewMovie({ ...newMovie, releaseYear: e.target.value })}
-                    required
-                />
-                <input
-                    type="number"
-                    step="0.1"
-                    placeholder="Puan"
-                    value={newMovie.rating}
-                    onChange={(e) => setNewMovie({ ...newMovie, rating: e.target.value })}
-                    required
-                />
-                <input
-                    type="text"
-                    placeholder="Açıklama"
-                    value={newMovie.description}
-                    onChange={(e) => setNewMovie({ ...newMovie, description: e.target.value })}
-                />
-                <input
-                    type="text"
-                    placeholder="Poster URL"
-                    value={newMovie.posterUrl}
-                    onChange={(e) => setNewMovie({ ...newMovie, posterUrl: e.target.value })}
-                />
-                <button type="submit">Ekle</button>
-            </form>
-        </div>
-    );
+                {/* Film Ekleme Formu */}
+                <h2>Yeni Film Ekle</h2>
+                <form onSubmit={handleAddMovie}>
+                    <input type="text" placeholder="Başlık"
+                           value={newMovie.title}
+                           onChange={(e) => setNewMovie({ ...newMovie, title: e.target.value })} required />
+                    <input type="text" placeholder="Tür"
+                           value={newMovie.genre}
+                           onChange={(e) => setNewMovie({ ...newMovie, genre: e.target.value })} required />
+                    <input type="number" placeholder="Yıl"
+                           value={newMovie.releaseYear}
+                           onChange={(e) => setNewMovie({ ...newMovie, releaseYear: e.target.value })} required />
+                    <input type="number" step="0.1" placeholder="Puan"
+                           value={newMovie.rating}
+                           onChange={(e) => setNewMovie({ ...newMovie, rating: e.target.value })} required />
+                    <input type="text" placeholder="Açıklama"
+                           value={newMovie.description}
+                           onChange={(e) => setNewMovie({ ...newMovie, description: e.target.value })} />
+                    <input type="text" placeholder="Poster URL"
+                           value={newMovie.posterUrl}
+                           onChange={(e) => setNewMovie({ ...newMovie, posterUrl: e.target.value })} />
+                    <button type="submit">Ekle</button>
+                </form>
+            </div>
+        );
+    }
 }
 
 export default App;
