@@ -3,6 +3,7 @@ package com.matchflix.backend.controller;
 import com.matchflix.backend.model.User;
 import com.matchflix.backend.service.UserService;
 import org.springframework.web.bind.annotation.*;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/users")
@@ -30,3 +31,5 @@ public class UserController {
         return userService.getUserById(id).orElse(null);
     }
 }
+
+
