@@ -4,7 +4,6 @@ function App() {
     const [user, setUser] = useState(null);
     const [authMode, setAuthMode] = useState("login");
 
-    // ✅ Artık username, email ve password var
     const [credentials, setCredentials] = useState({ username: "", email: "", password: "" });
 
     const [movies, setMovies] = useState([]);
@@ -21,6 +20,10 @@ function App() {
     const [wishlist, setWishlist] = useState([]);
     const [watchedlist, setWatchedlist] = useState([]);
 
+    // ✅ TMDB popüler filmler için state
+    const [tmdbMovies, setTmdbMovies] = useState([]);
+    const [tmdbLoading, setTmdbLoading] = useState(false);
+
     useEffect(() => {
         if (user !== null) {
             setLoading(true);
@@ -34,13 +37,24 @@ function App() {
                     setLoading(false);
                     alert("❌ Filmler alınamadı!");
                 });
+
+            // ✅ TMDB popüler filmleri çek
+            setTmdbLoading(true);
+            fetch("http://localhost:8080/api/tmdb/popular")
+                .then((res) => res.json())
+                .then((data) => {
+                    setTmdbMovies(data.results || []);
+                    setTmdbLoading(false);
+                })
+                .catch(() => {
+                    setTmdbLoading(false);
+                    alert("❌ TMDB filmleri alınamadı!");
+                });
         }
     }, [user]);
 
-    // Login/Register
     const handleAuth = (e) => {
         e.preventDefault();
-
         fetch(`http://localhost:8080/api/users/${authMode}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -88,7 +102,6 @@ function App() {
         return (
             <div style={{ padding: "20px" }}>
                 <h1>{authMode === "login" ? "🔑 Giriş Yap" : "📝 Kayıt Ol"}</h1>
-
                 <form onSubmit={handleAuth}>
                     {authMode === "register" && (
                         <input
@@ -113,16 +126,11 @@ function App() {
                         onChange={(e) => setCredentials({ ...credentials, password: e.target.value })}
                         required
                     />
-                    <button type="submit">
-                        {authMode === "login" ? "Giriş Yap" : "Kayıt Ol"}
-                    </button>
+                    <button type="submit">{authMode === "login" ? "Giriş Yap" : "Kayıt Ol"}</button>
                 </form>
-
                 <p>
                     {authMode === "login" ? "Hesabın yok mu?" : "Zaten hesabın var mı?"}
-                    <button
-                        onClick={() => setAuthMode(authMode === "login" ? "register" : "login")}
-                    >
+                    <button onClick={() => setAuthMode(authMode === "login" ? "register" : "login")}>
                         {authMode === "login" ? "Kayıt Ol" : "Giriş Yap"}
                     </button>
                 </p>
@@ -135,7 +143,33 @@ function App() {
             <h1>🎬 Hoşgeldin {user.username}</h1>
             <button onClick={() => setUser(null)}>🚪 Çıkış Yap</button>
 
-            <h2>Film Listesi</h2>
+            {/* ✅ TMDB Popüler Filmler */}
+            <h2>🌍 TMDB Popüler Filmler</h2>
+            {tmdbLoading ? (
+                <p>⏳ Yükleniyor...</p>
+            ) : (
+                <ul>
+                    {tmdbMovies.length === 0 ? (
+                        <li>Hiç film bulunamadı</li>
+                    ) : (
+                        tmdbMovies.map((movie) => (
+                            <li key={movie.id}>
+                                <strong>{movie.title}</strong> ({movie.release_date})
+                                <br />
+                                {movie.poster_path && (
+                                    <img
+                                        src={`https://image.tmdb.org/t/p/w200${movie.poster_path}`}
+                                        alt={movie.title}
+                                        width="100"
+                                    />
+                                )}
+                            </li>
+                        ))
+                    )}
+                </ul>
+            )}
+
+            <h2>Film Listesi (Senin DB)</h2>
             {loading ? (
                 <p>⏳ Yükleniyor...</p>
             ) : (
@@ -169,23 +203,17 @@ function App() {
 
             <h2>Yeni Film Ekle</h2>
             <form onSubmit={handleAddMovie}>
-                <input type="text" placeholder="Başlık"
-                       value={newMovie.title}
+                <input type="text" placeholder="Başlık" value={newMovie.title}
                        onChange={(e) => setNewMovie({ ...newMovie, title: e.target.value })} required />
-                <input type="text" placeholder="Tür"
-                       value={newMovie.genre}
+                <input type="text" placeholder="Tür" value={newMovie.genre}
                        onChange={(e) => setNewMovie({ ...newMovie, genre: e.target.value })} required />
-                <input type="number" placeholder="Yıl"
-                       value={newMovie.releaseYear}
+                <input type="number" placeholder="Yıl" value={newMovie.releaseYear}
                        onChange={(e) => setNewMovie({ ...newMovie, releaseYear: e.target.value })} required />
-                <input type="number" step="0.1" placeholder="Puan"
-                       value={newMovie.rating}
+                <input type="number" step="0.1" placeholder="Puan" value={newMovie.rating}
                        onChange={(e) => setNewMovie({ ...newMovie, rating: e.target.value })} required />
-                <input type="text" placeholder="Açıklama"
-                       value={newMovie.description}
+                <input type="text" placeholder="Açıklama" value={newMovie.description}
                        onChange={(e) => setNewMovie({ ...newMovie, description: e.target.value })} />
-                <input type="text" placeholder="Poster URL"
-                       value={newMovie.posterUrl}
+                <input type="text" placeholder="Poster URL" value={newMovie.posterUrl}
                        onChange={(e) => setNewMovie({ ...newMovie, posterUrl: e.target.value })} />
                 <button type="submit">Ekle</button>
             </form>
