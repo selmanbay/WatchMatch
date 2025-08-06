@@ -22,6 +22,10 @@ function App() {
         posterUrl: ""
     });
 
+    // ✅ Wishlist ve Watchedlist
+    const [wishlist, setWishlist] = useState([]);
+    const [watchedlist, setWatchedlist] = useState([]);
+
     // Eğer kullanıcı login olduysa film listesini çek
     useEffect(() => {
         if (user !== null) {  // kullanıcı giriş yaptıysa
@@ -78,9 +82,22 @@ function App() {
             .catch(() => alert("❌ Film eklenemedi!"));
     };
 
+    // ✅ Wishlist'e ekle
+    const addToWishlist = (movie) => {
+        if (!wishlist.some(m => m.id === movie.id)) {
+            setWishlist([...wishlist, movie]);
+        }
+    };
+
+    // ✅ Watchedlist'e ekle
+    const addToWatchedlist = (movie) => {
+        if (!watchedlist.some(m => m.id === movie.id)) {
+            setWatchedlist([...watchedlist, movie]);
+        }
+    };
+
     // ================== SAYFA GÖRÜNÜMLERİ ==================
 
-    // Eğer kullanıcı login değilse login/register sayfası göster
     if (user === null) {
         return (
             <div style={{ padding: "20px" }}>
@@ -117,59 +134,73 @@ function App() {
             </div>
         );
     }
+
     // Eğer kullanıcı login olmuşsa film sayfası göster
-    else {
-        return (
-            <div style={{ padding: "20px" }}>
-                <h1>🎬 Hoşgeldin {user.username}</h1>
-                <button onClick={() => setUser(null)}>🚪 Çıkış Yap</button>
+    return (
+        <div style={{ padding: "20px" }}>
+            <h1>🎬 Hoşgeldin {user.username}</h1>
+            <button onClick={() => setUser(null)}>🚪 Çıkış Yap</button>
 
-                {/* Film Listesi */}
-                <h2>Film Listesi</h2>
-                {loading ? (
-                    <p>⏳ Yükleniyor...</p>
-                ) : (
-                    <ul>
-                        {movies.length === 0 ? (
-                            <li>Hiç film bulunamadı</li>
-                        ) : (
-                            movies.map((movie) => (
-                                <li key={movie.id}>
-                                    <strong>{movie.title}</strong> ({movie.genre}, {movie.releaseYear}) ⭐ {movie.rating}
-                                    <p>{movie.description}</p>
-                                    {movie.posterUrl && <img src={movie.posterUrl} alt={movie.title} width="100" />}
-                                </li>
-                            ))
-                        )}
-                    </ul>
-                )}
+            {/* Film Listesi */}
+            <h2>Film Listesi</h2>
+            {loading ? (
+                <p>⏳ Yükleniyor...</p>
+            ) : (
+                <ul>
+                    {movies.length === 0 ? (
+                        <li>Hiç film bulunamadı</li>
+                    ) : (
+                        movies.map((movie) => (
+                            <li key={movie.id}>
+                                <strong>{movie.title}</strong> ({movie.genre}, {movie.releaseYear}) ⭐ {movie.rating}
+                                <p>{movie.description}</p>
+                                {movie.posterUrl && <img src={movie.posterUrl} alt={movie.title} width="100" />}
+                                <br />
+                                <button onClick={() => addToWishlist(movie)}>➕ İstek Listesine Ekle</button>
+                                <button onClick={() => addToWatchedlist(movie)}>✅ İzledim</button>
+                            </li>
+                        ))
+                    )}
+                </ul>
+            )}
 
-                {/* Film Ekleme Formu */}
-                <h2>Yeni Film Ekle</h2>
-                <form onSubmit={handleAddMovie}>
-                    <input type="text" placeholder="Başlık"
-                           value={newMovie.title}
-                           onChange={(e) => setNewMovie({ ...newMovie, title: e.target.value })} required />
-                    <input type="text" placeholder="Tür"
-                           value={newMovie.genre}
-                           onChange={(e) => setNewMovie({ ...newMovie, genre: e.target.value })} required />
-                    <input type="number" placeholder="Yıl"
-                           value={newMovie.releaseYear}
-                           onChange={(e) => setNewMovie({ ...newMovie, releaseYear: e.target.value })} required />
-                    <input type="number" step="0.1" placeholder="Puan"
-                           value={newMovie.rating}
-                           onChange={(e) => setNewMovie({ ...newMovie, rating: e.target.value })} required />
-                    <input type="text" placeholder="Açıklama"
-                           value={newMovie.description}
-                           onChange={(e) => setNewMovie({ ...newMovie, description: e.target.value })} />
-                    <input type="text" placeholder="Poster URL"
-                           value={newMovie.posterUrl}
-                           onChange={(e) => setNewMovie({ ...newMovie, posterUrl: e.target.value })} />
-                    <button type="submit">Ekle</button>
-                </form>
-            </div>
-        );
-    }
+            {/* ✅ İstek Listesi */}
+            <h2>İstek Listem</h2>
+            <ul>
+                {wishlist.length === 0 ? <li>Liste boş</li> : wishlist.map((m) => <li key={m.id}>{m.title}</li>)}
+            </ul>
+
+            {/* ✅ İzlediklerim */}
+            <h2>İzlediklerim</h2>
+            <ul>
+                {watchedlist.length === 0 ? <li>Liste boş</li> : watchedlist.map((m) => <li key={m.id}>{m.title}</li>)}
+            </ul>
+
+            {/* Film Ekleme Formu */}
+            <h2>Yeni Film Ekle</h2>
+            <form onSubmit={handleAddMovie}>
+                <input type="text" placeholder="Başlık"
+                       value={newMovie.title}
+                       onChange={(e) => setNewMovie({ ...newMovie, title: e.target.value })} required />
+                <input type="text" placeholder="Tür"
+                       value={newMovie.genre}
+                       onChange={(e) => setNewMovie({ ...newMovie, genre: e.target.value })} required />
+                <input type="number" placeholder="Yıl"
+                       value={newMovie.releaseYear}
+                       onChange={(e) => setNewMovie({ ...newMovie, releaseYear: e.target.value })} required />
+                <input type="number" step="0.1" placeholder="Puan"
+                       value={newMovie.rating}
+                       onChange={(e) => setNewMovie({ ...newMovie, rating: e.target.value })} required />
+                <input type="text" placeholder="Açıklama"
+                       value={newMovie.description}
+                       onChange={(e) => setNewMovie({ ...newMovie, description: e.target.value })} />
+                <input type="text" placeholder="Poster URL"
+                       value={newMovie.posterUrl}
+                       onChange={(e) => setNewMovie({ ...newMovie, posterUrl: e.target.value })} />
+                <button type="submit">Ekle</button>
+            </form>
+        </div>
+    );
 }
 
 export default App;
