@@ -1,16 +1,12 @@
 import React, { useEffect, useState } from "react";
 
 function App() {
-    // Kullanıcı bilgisi (login olmuş mu?)
     const [user, setUser] = useState(null);
-
-    // Kullanıcı login mi register mi yapıyor
     const [authMode, setAuthMode] = useState("login");
 
-    // Login/Register formu için bilgiler
-    const [credentials, setCredentials] = useState({ email: "", password: "" });
+    // ✅ Artık username, email ve password var
+    const [credentials, setCredentials] = useState({ username: "", email: "", password: "" });
 
-    // Filmler ve yeni film formu
     const [movies, setMovies] = useState([]);
     const [loading, setLoading] = useState(false);
     const [newMovie, setNewMovie] = useState({
@@ -22,15 +18,12 @@ function App() {
         posterUrl: ""
     });
 
-    // ✅ Wishlist ve Watchedlist
     const [wishlist, setWishlist] = useState([]);
     const [watchedlist, setWatchedlist] = useState([]);
 
-    // Eğer kullanıcı login olduysa film listesini çek
     useEffect(() => {
-        if (user !== null) {  // kullanıcı giriş yaptıysa
+        if (user !== null) {
             setLoading(true);
-
             fetch("http://localhost:8080/api/movies")
                 .then((res) => res.json())
                 .then((data) => {
@@ -44,7 +37,7 @@ function App() {
         }
     }, [user]);
 
-    // Kullanıcı login/register işlemi
+    // Login/Register
     const handleAuth = (e) => {
         e.preventDefault();
 
@@ -54,7 +47,7 @@ function App() {
             body: JSON.stringify(credentials)
         })
             .then((res) => {
-                if (!res.ok) throw new Error("❌ İşlem başarısız!");
+                if (!res.ok) return res.text().then(msg => { throw new Error(msg); });
                 return res.json();
             })
             .then((data) => {
@@ -64,10 +57,8 @@ function App() {
             .catch((err) => alert(err.message));
     };
 
-    // Yeni film ekleme
     const handleAddMovie = (e) => {
         e.preventDefault();
-
         fetch("http://localhost:8080/api/movies", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -75,28 +66,23 @@ function App() {
         })
             .then((res) => res.json())
             .then((data) => {
-                setMovies([...movies, data]); // listeye yeni filmi ekle
-                // formu temizle
+                setMovies([...movies, data]);
                 setNewMovie({ title: "", genre: "", releaseYear: "", rating: "", description: "", posterUrl: "" });
             })
             .catch(() => alert("❌ Film eklenemedi!"));
     };
 
-    // ✅ Wishlist'e ekle
     const addToWishlist = (movie) => {
         if (!wishlist.some(m => m.id === movie.id)) {
             setWishlist([...wishlist, movie]);
         }
     };
 
-    // ✅ Watchedlist'e ekle
     const addToWatchedlist = (movie) => {
         if (!watchedlist.some(m => m.id === movie.id)) {
             setWatchedlist([...watchedlist, movie]);
         }
     };
-
-    // ================== SAYFA GÖRÜNÜMLERİ ==================
 
     if (user === null) {
         return (
@@ -104,11 +90,20 @@ function App() {
                 <h1>{authMode === "login" ? "🔑 Giriş Yap" : "📝 Kayıt Ol"}</h1>
 
                 <form onSubmit={handleAuth}>
+                    {authMode === "register" && (
+                        <input
+                            type="text"
+                            placeholder="Kullanıcı adı"
+                            value={credentials.username}
+                            onChange={(e) => setCredentials({ ...credentials, username: e.target.value })}
+                            required
+                        />
+                    )}
                     <input
-                        type="text"
-                        placeholder="Kullanıcı adı"
-                        value={credentials.username}
-                        onChange={(e) => setCredentials({ ...credentials, username: e.target.value })}
+                        type="email"
+                        placeholder="Email"
+                        value={credentials.email}
+                        onChange={(e) => setCredentials({ ...credentials, email: e.target.value })}
                         required
                     />
                     <input
@@ -135,13 +130,11 @@ function App() {
         );
     }
 
-    // Eğer kullanıcı login olmuşsa film sayfası göster
     return (
         <div style={{ padding: "20px" }}>
             <h1>🎬 Hoşgeldin {user.username}</h1>
             <button onClick={() => setUser(null)}>🚪 Çıkış Yap</button>
 
-            {/* Film Listesi */}
             <h2>Film Listesi</h2>
             {loading ? (
                 <p>⏳ Yükleniyor...</p>
@@ -164,19 +157,16 @@ function App() {
                 </ul>
             )}
 
-            {/* ✅ İstek Listesi */}
             <h2>İstek Listem</h2>
             <ul>
                 {wishlist.length === 0 ? <li>Liste boş</li> : wishlist.map((m) => <li key={m.id}>{m.title}</li>)}
             </ul>
 
-            {/* ✅ İzlediklerim */}
             <h2>İzlediklerim</h2>
             <ul>
                 {watchedlist.length === 0 ? <li>Liste boş</li> : watchedlist.map((m) => <li key={m.id}>{m.title}</li>)}
             </ul>
 
-            {/* Film Ekleme Formu */}
             <h2>Yeni Film Ekle</h2>
             <form onSubmit={handleAddMovie}>
                 <input type="text" placeholder="Başlık"
