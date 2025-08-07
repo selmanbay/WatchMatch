@@ -703,6 +703,19 @@ function App() {
                             ) : (
                                 wishlist.map((m) => (
                                     <div key={m.id} style={movieCardStyle}>
+                                        <div style={moviePosterStyle}>
+                                            {m.posterUrl || m.poster_path ? (
+                                                <img
+                                                    src={m.posterUrl || `https://image.tmdb.org/t/p/w200${m.poster_path}`}
+                                                    alt={m.title}
+                                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                                />
+                                            ) : (
+                                                <div style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'center' }}>
+                                                    No Image
+                                                </div>
+                                            )}
+                                        </div>
                                         <div style={movieInfoStyle}>
                                             <h3 style={movieTitleStyle}>{m.title}</h3>
                                         </div>
@@ -725,6 +738,19 @@ function App() {
                             ) : (
                                 watchedlist.map((m) => (
                                     <div key={m.id} style={movieCardStyle}>
+                                        <div style={moviePosterStyle}>
+                                            {m.posterUrl || m.poster_path ? (
+                                                <img
+                                                    src={m.posterUrl || `https://image.tmdb.org/t/p/w200${m.poster_path}`}
+                                                    alt={m.title}
+                                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                                />
+                                            ) : (
+                                                <div style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'center' }}>
+                                                    No Image
+                                                </div>
+                                            )}
+                                        </div>
                                         <div style={movieInfoStyle}>
                                             <h3 style={movieTitleStyle}>{m.title}</h3>
                                         </div>
@@ -733,6 +759,7 @@ function App() {
                             )}
                         </div>
                     </section>
+
 
                     {/* Film Ekleme */}
                     <section style={formStyle}>
