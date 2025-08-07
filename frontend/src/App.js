@@ -494,7 +494,6 @@ function App() {
             </header>
 
             <main style={mainContentStyle}>
-                {/* Arama Sonuçları */}
                 {searchResults.length > 0 && (
                     <section>
                         <div style={sectionHeaderStyle}>
