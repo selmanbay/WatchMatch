@@ -264,14 +264,16 @@ function App() {
     const logoIconStyle = {
         width: '40px',
         height: '40px',
-        background: 'linear-gradient(45deg, #dc2626, #991b1b)',
+        background: '#dc2626',
         borderRadius: '8px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        fontSize: '20px',
+        fontSize: '18px',
         fontWeight: 'bold',
-        color: 'white'
+        color: 'white',
+        fontFamily: "'Segoe UI', sans-serif",
+        letterSpacing: '-1px'
     };
 
     const mainContentStyle = {
@@ -446,7 +448,7 @@ function App() {
             <header style={headerStyle}>
                 <div style={navContainerStyle}>
                     <div style={logoStyle}>
-                        <div style={logoIconStyle}>B</div>
+                        <div style={logoIconStyle}>WM</div>
                         <span>WatchMatch</span>
                     </div>
 
