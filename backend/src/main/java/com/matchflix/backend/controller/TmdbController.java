@@ -14,8 +14,16 @@ public class TmdbController {
         this.movieApiService = movieApiService;
     }
 
+    // ✅ Popüler filmleri getir
     @GetMapping("/popular")
     public String getPopularMovies() {
         return movieApiService.getPopularMovies();
     }
+
+    // ✅ Arama yap
+    @GetMapping("/search")
+    public String searchMovies(@RequestParam String query) {
+        return movieApiService.searchMovies(query);
+    }
 }
+

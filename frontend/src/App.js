@@ -22,6 +22,22 @@ function App() {
     const [tmdbMovies, setTmdbMovies] = useState([]);
     const [tmdbLoading, setTmdbLoading] = useState(false);
 
+    const [searchQuery, setSearchQuery] = useState("");
+    const [searchResults, setSearchResults] = useState([]);
+
+    const handleSearch = () => {
+        if (searchQuery.trim() === "") return;
+        fetch(`http://localhost:8080/api/tmdb/search?query=${encodeURIComponent(searchQuery)}`)
+            .then((res) => res.json())
+            .then((data) => {
+                setSearchResults(data.results || []);
+            })
+            .catch(() => {
+                alert("❌ Arama başarısız oldu!");
+            });
+    };
+
+
     useEffect(() => {
         if (user !== null) {
             setLoading(true);
@@ -438,7 +454,10 @@ function App() {
                         <div style={{ position: 'relative' }}>
                             <input
                                 type="text"
-                                placeholder="Search for movies, TV shows, people and more..."
+                                placeholder="Film ara..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                                 style={{
                                     background: 'rgba(255, 255, 255, 0.1)',
                                     border: '1px solid rgba(255, 255, 255, 0.2)',
@@ -450,16 +469,22 @@ function App() {
                                     outline: 'none'
                                 }}
                             />
-                            <button style={{
-                                position: 'absolute',
-                                right: '15px',
-                                top: '50%',
-                                transform: 'translateY(-50%)',
-                                background: 'none',
-                                border: 'none',
-                                color: 'rgba(255, 255, 255, 0.6)',
-                                cursor: 'pointer'
-                            }}>🔍</button>
+                            <button
+                                onClick={handleSearch}
+                                style={{
+                                    position: 'absolute',
+                                    right: '15px',
+                                    top: '50%',
+                                    transform: 'translateY(-50%)',
+                                    background: 'none',
+                                    border: 'none',
+                                    color: 'rgba(255, 255, 255, 0.6)',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                🔍
+                            </button>
+
                         </div>
                         <button onClick={() => setUser(null)} style={btnStyle}>
                             🚪 Çıkış Yap
@@ -469,6 +494,55 @@ function App() {
             </header>
 
             <main style={mainContentStyle}>
+                {/* Arama Sonuçları */}
+                {searchResults.length > 0 && (
+                    <section>
+                        <div style={sectionHeaderStyle}>
+                            <h2 style={sectionTitleStyle}>🔍 Arama Sonuçları</h2>
+                        </div>
+                        <div style={movieGridStyle}>
+                            {searchResults.map((movie) => (
+                                <div key={movie.id} style={movieCardStyle}>
+                                    <div style={moviePosterStyle}>
+                                        {movie.poster_path ? (
+                                            <img
+                                                src={`https://image.tmdb.org/t/p/w200${movie.poster_path}`}
+                                                alt={movie.title}
+                                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                            />
+                                        ) : (
+                                            <div style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'center' }}>
+                                                No Image
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div style={movieInfoStyle}>
+                                        <h3 style={movieTitleStyle}>{movie.title}</h3>
+                                        <div style={movieMetaStyle}>
+                                            <span style={movieYearStyle}>{movie.release_date}</span>
+                                            <span style={movieRatingStyle}>⭐ {movie.vote_average}</span>
+                                        </div>
+                                        <div style={movieActionsStyle}>
+                                            <button
+                                                onClick={() => addToWishlist(movie)}
+                                                style={wishlistBtnStyle}
+                                            >
+                                                ➕ İstek Listesi
+                                            </button>
+                                            <button
+                                                onClick={() => addToWatchedlist(movie)}
+                                                style={watchedBtnStyle}
+                                            >
+                                                ✅ İzledim
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+                )}
+
                 <div style={containerStyle}>
                     {/* Hero Section */}
                     <section style={{
