@@ -20,12 +20,13 @@ public class UserPreference {
     // Tercih edilen dil (TR, EN, FR gibi)
     private String language;
 
-    @OneToOne
-    @JoinColumn(name = "user", unique = true)
+    @OneToOne(optional = false)                // kullanıcı olmadan tercih kaydı olmasın istiyorsan
+    @JoinColumn(name = "user_id",              // ✅ reserved kelimeyi bırak
+            nullable = false,              // zorunlu değilse true yapabilirsin
+            unique = true)                 // her kullanıcıya 1 satır
     private User user;
 
-
-    // -------- Getters & Setters --------
+    // Getters & Setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -41,3 +42,4 @@ public class UserPreference {
     public User getUser() { return user; }
     public void setUser(User user) { this.user = user; }
 }
+
