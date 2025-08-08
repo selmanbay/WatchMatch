@@ -1,5 +1,4 @@
 package com.matchflix.backend.service;
-import lombok.Data;
 import com.matchflix.backend.model.Movie;
 import com.matchflix.backend.repository.MovieRepository;
 import org.springframework.stereotype.Service;
@@ -29,7 +28,6 @@ public class MovieService {
     public Movie updateMovie(Long id, Movie updatedMovie) {
         return movieRepository.findById(id).map(movie -> {
             movie.setTitle(updatedMovie.getTitle());
-            movie.setGenre(updatedMovie.getGenre());
             movie.setReleaseYear(updatedMovie.getReleaseYear());
             movie.setPosterUrl(updatedMovie.getPosterUrl());
             movie.setRating(updatedMovie.getRating());
