@@ -16,5 +16,6 @@ public class Rate {
     @JoinColumn(name = "movie_id")
     private Movie movie;
 
+
     // getter / setter...
 }

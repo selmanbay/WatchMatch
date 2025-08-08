@@ -20,6 +20,9 @@ public class User {
     @OneToMany(mappedBy = "user") // kullanıcının verdiği puanlar
     private List<Rate> ratings = new ArrayList<>();
 
+    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL)
+    private UserPreference preference;
+
     // getter/setter
     public Long getUser_id() { return user_id; }
     public String getEmail() { return email; }

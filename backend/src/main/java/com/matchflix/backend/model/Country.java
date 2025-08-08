@@ -4,4 +4,7 @@ import jakarta.persistence.*;
 @Table(name = "country")
 public class Country {
 
+@Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 }

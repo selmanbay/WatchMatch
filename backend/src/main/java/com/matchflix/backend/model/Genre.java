@@ -15,7 +15,7 @@ public class Genre {
     @Column(nullable = false, unique = true)
     private String name; // Action, Drama, ...
 
-    @ManyToMany(mappedBy = "movie_genres")
+    @ManyToMany(mappedBy = "genres")
     private List<Movie> movies = new ArrayList<>();
 
     // getter/setter
