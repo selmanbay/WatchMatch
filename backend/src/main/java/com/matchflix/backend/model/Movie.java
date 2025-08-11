@@ -7,17 +7,27 @@ import java.util.List;
 @Entity
 @Table(name = "movies")
 public class Movie {
-    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long movie_id;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
+    private Long id;
 
+    @Column(nullable = false)
     private String title;
+
+    @Column(name = "release_year")
     private int releaseYear;
+
+    @Column(name = "poster_url")
     private String posterUrl;
+
     private double rating;
+
+    @Column(columnDefinition = "text")
     private String description;
 
     // Film ↔ Genre (M:M)  → ara tablo: movie_genres
-    @ManyToMany
+    @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
             name = "movie_genres",
             joinColumns = @JoinColumn(name = "movie_id"),
@@ -25,8 +35,9 @@ public class Movie {
     )
     private List<Genre> genres = new ArrayList<>();
 
-    // getter/setter
-    public Long getMovie_id() { return movie_id; }
+    // getters/setters
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
     public String getTitle() { return title; }
     public void setTitle(String title) { this.title = title; }
     public int getReleaseYear() { return releaseYear; }
