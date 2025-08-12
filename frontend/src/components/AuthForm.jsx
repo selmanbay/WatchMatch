@@ -14,7 +14,7 @@ export default function AuthForm({ onSuccess }) {
     const [countriesError, setCountriesError] = useState(null);
     const [selectedCountryId, setSelectedCountryId] = useState("");
 
-    // Ülkeleri yükle (aynı URL)
+    // Ülkeleri yükle
     useEffect(() => {
         setCountriesLoading(true);
         fetch("http://localhost:8080/api/countries")
@@ -26,6 +26,15 @@ export default function AuthForm({ onSuccess }) {
             .catch((e) => { console.warn(e); setCountriesError("❌ Ülkeler alınamadı!"); })
             .finally(() => setCountriesLoading(false));
     }, []);
+
+    // Ülke bağlama helper (backend: PUT /api/users/{userId}/country/{countryId})
+    async function linkCountry(userId, countryId) {
+        const res = await fetch(`http://localhost:8080/api/users/${userId}/country/${countryId}`, {
+            method: "PUT"
+        });
+        if (!res.ok) throw new Error(await res.text());
+        try { return await res.json(); } catch { return null; } // 204 ise json olmayabilir
+    }
 
     const handleAuth = async (e) => {
         e.preventDefault();
@@ -58,7 +67,18 @@ export default function AuthForm({ onSuccess }) {
             if (!regRes.ok) throw new Error(await regRes.text());
             const savedUser = await regRes.json();
 
-            // Opsiyonel: preference
+            // ÜLKEYİ BAĞLA (opsiyonel)
+            let userToSet = savedUser;
+            if (selectedCountryId) {
+                try {
+                    const updated = await linkCountry(savedUser.id, selectedCountryId);
+                    if (updated) userToSet = updated; // backend güncel user döndürdüyse onu kullan
+                } catch (err) {
+                    console.warn("Country bağlama başarısız:", err.message || err);
+                }
+            }
+
+            // PREFERENCE OLUŞTUR (opsiyonel)
             if ((pref.sex && pref.sex.trim() !== "") || (pref.language && pref.language.trim() !== "")) {
                 const prefRes = await fetch(`http://localhost:8080/api/users/${savedUser.id}/preference`, {
                     method: "POST",
@@ -68,7 +88,7 @@ export default function AuthForm({ onSuccess }) {
                 if (!prefRes.ok) console.warn("Preference kaydı başarısız:", await prefRes.text());
             }
 
-            onSuccess?.(savedUser);
+            onSuccess?.(userToSet);
             alert("✅ Kayıt başarılı!");
         } catch (err) {
             alert("❌ Kayıt/Giriş hatası: " + (typeof err.message === "string" ? err.message : "Bilinmeyen hata"));
