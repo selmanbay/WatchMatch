@@ -27,18 +27,7 @@ public class UserController {
         }
     }
 
-    // 2) (Opsiyonel) ülke bağlama – tercihen ayrı bir çağrı ile
-    @PutMapping("/{userId}/country/{countryId}")
-    public ResponseEntity<?> setCountry(@PathVariable Long userId, @PathVariable Long countryId) {
-        try {
-            userService.setCountry(userId, countryId); // UserService içinde bu metot olmalı
-            return ResponseEntity.ok().build();
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body("Ülke atanamadı: " + e.getMessage());
-        }
-    }
-
-    // 3) Giriş
+    // Giriş
     @PostMapping("/login")
     public ResponseEntity<?> loginUser(@RequestBody User loginRequest) {
         try {
@@ -49,13 +38,23 @@ public class UserController {
             return ResponseEntity.badRequest().body("Giriş başarısız: " + e.getMessage());
         }
     }
-
-    // 4) Kullanıcı getir
+    //Insert user into the country user list
+    @PutMapping("/{userId}/country/{countryId}")
+    public ResponseEntity<?> setCountry(@PathVariable Long userId, @PathVariable Long countryId) {
+        try {
+            User updated = userService.setCountry(userId, countryId);
+            return ResponseEntity.ok(updated);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Country set hatası: " + e.getMessage());
+        }
+    }
+    // Kullanıcı getir
     @GetMapping("/{id}")
     public ResponseEntity<?> getUser(@PathVariable Long id) {
         return userService.getUserById(id)
                 .<ResponseEntity<?>>map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
+
 }
 

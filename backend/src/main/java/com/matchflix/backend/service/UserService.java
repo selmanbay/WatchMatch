@@ -79,15 +79,17 @@ public class UserService {
         }
         return user;
     }
-    public void setCountry(Long userId, Long countryId) {
+    public User setCountry(Long userId, Long countryId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("Kullanıcı bulunamadı: " + userId));
-
+                .orElseThrow(() -> new RuntimeException("User not found: " + userId));
         Country country = countryRepository.findById(countryId)
-                .orElseThrow(() -> new IllegalArgumentException("Ülke bulunamadı: " + countryId));
+                .orElseThrow(() -> new RuntimeException("Country not found: " + countryId));
 
         user.setCountry(country);
         userRepository.save(user);
+
+        // JSON’da country null görünmesin diye fetch-join ile geri yükleyip dönüyoruz
+        return userRepository.findByIdFetchCountry(user.getId()).orElse(user);
     }
 
     public Optional<User> getUserById(Long id) {
