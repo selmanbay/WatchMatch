@@ -1,10 +1,12 @@
+
+
 import React, { useEffect, useState } from "react";
 
 function App() {
     const [user, setUser] = useState(null);
     const [authMode, setAuthMode] = useState("login");
 
-    // KAYIT + GİRİŞ alanları (ad/soyad register'da zorunlu çünkü entity'de NOT NULL)
+    // KAYIT + GİRİŞ alanları
     const [credentials, setCredentials] = useState({
         username: "",
         email: "",
@@ -13,8 +15,14 @@ function App() {
         lastName: ""
     });
 
-    // REGISTER sonrası göndereceğimiz tercih bilgisi
+    // REGISTER sonrası tercih + ülke
     const [pref, setPref] = useState({ sex: "", language: "" });
+
+    // Ülke seçimi için state
+    const [countries, setCountries] = useState([]);
+    const [countriesLoading, setCountriesLoading] = useState(false);
+    const [countriesError, setCountriesError] = useState(null);
+    const [selectedCountryId, setSelectedCountryId] = useState("");
 
     const [movies, setMovies] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -35,6 +43,25 @@ function App() {
 
     const [searchQuery, setSearchQuery] = useState("");
     const [searchResults, setSearchResults] = useState([]);
+
+    // Ülkeleri yükle
+    useEffect(() => {
+        setCountriesLoading(true);
+        fetch("http://localhost:8080/api/countries")
+            .then((r) => {
+                if (!r.ok) throw new Error("Ülke servisi hatası");
+                return r.json();
+            })
+            .then((data) => {
+                setCountries(data || []);
+                setCountriesError(null);
+            })
+            .catch((e) => {
+                console.warn(e);
+                setCountriesError("❌ Ülkeler alınamadı!");
+            })
+            .finally(() => setCountriesLoading(false));
+    }, []);
 
     const handleSearch = () => {
         if (searchQuery.trim() === "") return;
@@ -84,10 +111,7 @@ function App() {
                 const res = await fetch("http://localhost:8080/api/users/login", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        email: credentials.email,
-                        password: credentials.password
-                    })
+                    body: JSON.stringify({ email: credentials.email, password: credentials.password })
                 });
                 if (!res.ok) throw new Error(await res.text());
                 const data = await res.json();
@@ -96,7 +120,7 @@ function App() {
                 return;
             }
 
-            // REGISTER
+            // REGISTER (sadece kullanıcı kaydı)
             const regRes = await fetch("http://localhost:8080/api/users/register", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -106,37 +130,28 @@ function App() {
                     username: credentials.username,
                     firstName: credentials.firstName,
                     lastName: credentials.lastName
-                    // country bağlayacaksan burada göndermiyoruz;
-                    // ayrı endpoint ile userId üzerinden bağlamayı tercih ettik.
                 })
             });
             if (!regRes.ok) throw new Error(await regRes.text());
             const savedUser = await regRes.json();
             setUser(savedUser);
 
-            // REGISTER SONRASI PREFERENCE OLUŞTUR (opsiyonel alanlar doluysa)
+            // Opsiyonel: preference
             if ((pref.sex && pref.sex.trim() !== "") || (pref.language && pref.language.trim() !== "")) {
                 const prefRes = await fetch(`http://localhost:8080/api/users/${savedUser.id}/preference`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        sex: pref.sex || "-",
-                        language: pref.language || "-"
-                    })
+                    body: JSON.stringify({ sex: pref.sex || "-", language: pref.language || "-" })
                 });
-                if (!prefRes.ok) {
-                    const txt = await prefRes.text();
-                    console.warn("Preference kaydı başarısız:", txt);
-                }
+                if (!prefRes.ok) console.warn("Preference kaydı başarısız:", await prefRes.text());
             }
 
             alert("✅ Kayıt başarılı!");
         } catch (err) {
-            // backend string döndürürse mesajı sadeleştir
-            const msg = typeof err.message === "string" ? err.message : "Bilinmeyen hata";
-            alert("❌ Kayıt/Giriş hatası: " + msg);
+            alert("❌ Kayıt/Giriş hatası: " + (typeof err.message === "string" ? err.message : "Bilinmeyen hata"));
         }
     };
+
 
     const handleAddMovie = (e) => {
         e.preventDefault();
@@ -445,6 +460,23 @@ function App() {
                                     onChange={(e) => setCredentials({ ...credentials, lastName: e.target.value })}
                                     style={{ ...formInputStyle, marginBottom: 12 }}
                                 />
+
+                                {/* Ülke seçimi */}
+                                <select
+                                    value={selectedCountryId}
+                                    onChange={(e) => setSelectedCountryId(e.target.value)}
+                                    style={{ ...selectStyle, marginBottom: 12 }}
+                                    disabled={countriesLoading || countriesError}
+                                >
+                                    <option value="">
+                                        {countriesLoading ? "Yükleniyor..." : countriesError ? "Ülke alınamadı" : "Ülke (opsiyonel)"}
+                                    </option>
+                                    {countries.map((c) => (
+                                        <option key={c.id} value={c.id}>
+                                            {c.countryName}
+                                        </option>
+                                    ))}
+                                </select>
                             </>
                         )}
 
@@ -890,3 +922,5 @@ function App() {
 }
 
 export default App;
+
+
