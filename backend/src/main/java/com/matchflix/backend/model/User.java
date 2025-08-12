@@ -23,7 +23,7 @@ public class User {
     @Column(nullable = false) private String email;
     @Column(nullable = false) private String password;
     @Column(nullable = false) private String username;
-
+    @Column(nullable = true) private String pp_link;
     @Column(name = "first_name", nullable = false) private String firstName;
     @Column(name = "last_name",  nullable = false) private String lastName;
 
@@ -44,6 +44,14 @@ public class User {
     @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY, optional = true)
     @JsonIgnore
     private UserPreference preference;
+
+    public String getPp_link() {
+        return pp_link;
+    }
+
+    public void setPp_link(String pp_link) {
+        this.pp_link = pp_link;
+    }
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "country_id", foreignKey = @ForeignKey(name = "fk_users_country"))
