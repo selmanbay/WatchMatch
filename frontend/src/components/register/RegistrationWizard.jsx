@@ -1,4 +1,3 @@
-// src/components/register/RegistrationWizard.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { authPageStyle } from "../../styles/ui";
 import StepAccount from "./StepAccount";
@@ -14,13 +13,12 @@ export default function RegistrationWizard({ onSuccess, onCancel }) {
         firstName: "",
         lastName: ""
     });
-
     const [pref, setPref] = useState({ sex: "", language: "" });
 
-    // Country selection (ID expected from API)
+    // Country (ID)
     const [selectedCountryId, setSelectedCountryId] = useState("");
 
-    // ===== Countries (from backend) =====
+    // ===== Countries =====
     const [countries, setCountries] = useState([]);
     const [countriesLoading, setCountriesLoading] = useState(false);
     const [countriesError, setCountriesError] = useState(null);
@@ -28,7 +26,7 @@ export default function RegistrationWizard({ onSuccess, onCancel }) {
     // ===== Wizard Step =====
     const [step, setStep] = useState(1);
 
-    // ===== Fetch countries on mount =====
+    // Fetch countries
     useEffect(() => {
         let mounted = true;
         (async () => {
@@ -48,12 +46,10 @@ export default function RegistrationWizard({ onSuccess, onCancel }) {
                 if (mounted) setCountriesLoading(false);
             }
         })();
-        return () => {
-            mounted = false;
-        };
+        return () => (mounted = false);
     }, []);
 
-    // ===== Basic Validations per step =====
+    // ===== Validations =====
     const canNext1 = useMemo(
         () =>
             credentials.username.trim() &&
@@ -62,7 +58,7 @@ export default function RegistrationWizard({ onSuccess, onCancel }) {
         [credentials]
     );
 
-    // STEP 2 is required: firstName, lastName, and country
+    // Step 2 zorunlulukları: firstName + lastName + country
     const canNext2 = useMemo(
         () =>
             credentials.firstName.trim() &&
@@ -74,16 +70,29 @@ export default function RegistrationWizard({ onSuccess, onCancel }) {
     const goNext = () => setStep((s) => Math.min(3, s + 1));
     const goBack = () => setStep((s) => Math.max(1, s - 1));
 
-    // ===== Submit (register + optional preference) =====
+    // ===== Helpers =====
+    async function linkCountry(userId, countryId) {
+        const res = await fetch(
+            `http://localhost:8080/api/users/${userId}/country/${countryId}`,
+            { method: "PUT" }
+        );
+        if (!res.ok) throw new Error(await res.text());
+        try {
+            return await res.json(); // backend 200 + user dönebilir
+        } catch {
+            return null; // 204 vs.
+        }
+    }
+
+    // ===== Submit (register → linkCountry → prefs) =====
     const submit = async () => {
         try {
-            // Defensive: countryId must be a number (backend usually expects Long)
-            const countryId =
+            // Defensive: country must exist (step 2 zaten engelliyor ama yine de)
+            const countryIdNum =
                 selectedCountryId !== "" && selectedCountryId !== null
                     ? Number(selectedCountryId)
-                    : null;
-
-            if (!countryId || Number.isNaN(countryId)) {
+                    : NaN;
+            if (!countryIdNum || Number.isNaN(countryIdNum)) {
                 alert("❌ Lütfen ülke seçiniz.");
                 setStep(2);
                 return;
@@ -98,23 +107,26 @@ export default function RegistrationWizard({ onSuccess, onCancel }) {
                     password: credentials.password,
                     username: credentials.username,
                     firstName: credentials.firstName,
-                    lastName: credentials.lastName,
-                    countryId // 👈 ZORUNLU OLARAK GÖNDERİLİYOR
+                    lastName: credentials.lastName
+                    // DİKKAT: countryId'yi body'ye koymuyoruz; ayrı PUT ile bağlayacağız
                 })
             });
-
-            if (!regRes.ok) {
-                const msg = await regRes.text();
-                throw new Error(msg || "Kayıt başarısız");
-            }
-
+            if (!regRes.ok) throw new Error(await regRes.text());
             const savedUser = await regRes.json();
 
-            // 2) Optional preferences (only if at least one filled)
+            // 2) COUNTRY LINK (AuthForm’daki gibi)
+            let userToSet = savedUser;
+            try {
+                const updated = await linkCountry(savedUser.id, countryIdNum);
+                if (updated) userToSet = updated;
+            } catch (err) {
+                console.warn("Country bağlama başarısız:", err?.message || err);
+            }
+
+            // 3) OPTIONAL PREFERENCES
             const hasAnyPref =
                 (pref.sex && pref.sex.trim() !== "") ||
                 (pref.language && pref.language.trim() !== "");
-
             if (hasAnyPref) {
                 const prefRes = await fetch(
                     `http://localhost:8080/api/users/${savedUser.id}/preference`,
@@ -132,7 +144,7 @@ export default function RegistrationWizard({ onSuccess, onCancel }) {
                 }
             }
 
-            onSuccess?.(savedUser);
+            onSuccess?.(userToSet);
             alert("✅ Kayıt başarılı!");
         } catch (err) {
             alert("❌ Kayıt hatası: " + (err?.message || "Bilinmeyen hata"));
@@ -174,7 +186,7 @@ export default function RegistrationWizard({ onSuccess, onCancel }) {
                     ))}
                 </div>
 
-                {/* STEP 1: Account */}
+                {/* STEP 1 */}
                 {step === 1 && (
                     <StepAccount
                         values={credentials}
@@ -185,7 +197,7 @@ export default function RegistrationWizard({ onSuccess, onCancel }) {
                     />
                 )}
 
-                {/* STEP 2: Profile (First/Last name + Country REQUIRED) */}
+                {/* STEP 2 */}
                 {step === 2 && (
                     <StepProfile
                         values={credentials}
@@ -197,18 +209,13 @@ export default function RegistrationWizard({ onSuccess, onCancel }) {
                         countriesError={countriesError}
                         onNext={goNext}
                         onBack={goBack}
-                        canNext={!!canNext2} // 👈 Ülke seçilmeden ileri gidemez
+                        canNext={!!canNext2} // ülke seçilmeden ileri gidemez
                     />
                 )}
 
-                {/* STEP 3: Preferences (optional) */}
+                {/* STEP 3 */}
                 {step === 3 && (
-                    <StepPrefs
-                        pref={pref}
-                        setPref={setPref}
-                        onBack={goBack}
-                        onSubmit={submit}
-                    />
+                    <StepPrefs pref={pref} setPref={setPref} onBack={goBack} onSubmit={submit} />
                 )}
             </div>
         </div>
