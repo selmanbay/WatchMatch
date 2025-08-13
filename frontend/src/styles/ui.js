@@ -1,3 +1,5 @@
+// src/styles/ui.js
+
 export const headerStyle = {
     background: "rgba(15, 20, 25, 0.95)",
     backdropFilter: "blur(10px)",
@@ -128,7 +130,11 @@ export const movieRatingStyle = {
     fontWeight: "600"
 };
 
-export const movieGenreStyle = { color: "rgba(255, 255, 255, 0.7)", fontSize: "0.85rem", marginBottom: "15px" };
+export const movieGenreStyle = {
+    color: "rgba(255, 255, 255, 0.7)",
+    fontSize: "0.85rem",
+    marginBottom: "15px"
+};
 
 export const movieActionsStyle = { display: "flex", gap: "8px" };
 
@@ -174,6 +180,7 @@ export const formRowStyle = {
 
 export const formInputStyle = {
     width: "100%",
+    boxSizing: "border-box", // taşmayı engeller, select ile aynı genişlikte kalır
     padding: "15px",
     background: "rgba(255, 255, 255, 0.1)",
     border: "1px solid rgba(255, 255, 255, 0.2)",
@@ -184,7 +191,11 @@ export const formInputStyle = {
     transition: "all 0.3s"
 };
 
-export const selectStyle = { ...formInputStyle, appearance: "none", cursor: "pointer" };
+export const selectStyle = {
+    ...formInputStyle,
+    appearance: "none",
+    cursor: "pointer"
+};
 
 export const btnStyle = {
     background: "linear-gradient(45deg, #dc2626, #991b1b)",
