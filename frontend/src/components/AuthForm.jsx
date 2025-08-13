@@ -1,5 +1,6 @@
+// src/components/AuthForm.jsx
 import React, { useState } from "react";
-import { btnStyle, formInputStyle } from "../styles/ui";
+import { btnStyle, formInputStyle, authPageStyle } from "../styles/ui";
 import RegistrationWizard from "./register/RegistrationWizard";
 
 export default function AuthForm({ onSuccess }) {
@@ -34,7 +35,14 @@ export default function AuthForm({ onSuccess }) {
                     Zaten hesabın var mı?
                     <button
                         onClick={() => setAuthMode("login")}
-                        style={{ marginLeft: 6, color: "#dc2626", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}
+                        style={{
+                            marginLeft: 6,
+                            color: "#dc2626",
+                            background: "none",
+                            border: "none",
+                            cursor: "pointer",
+                            textDecoration: "underline"
+                        }}
                     >
                         Giriş Yap
                     </button>
@@ -43,31 +51,30 @@ export default function AuthForm({ onSuccess }) {
         );
     }
 
-    // LOGIN ekranı
+    // LOGIN ekranı (arka plan: public/images/auth-bg.webp)
     return (
-        <div
-            style={{
-                minHeight: "100vh",
-                background: "linear-gradient(135deg, #0f1419 0%, #1a2332 100%)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
-            }}
-        >
+        <div style={authPageStyle()}>
             <div
                 style={{
                     background: "linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05))",
                     border: "1px solid rgba(255,255,255,0.2)",
-                    borderRadius: 20, padding: 40, width: "100%", maxWidth: 420,
-                    backdropFilter: "blur(20px)", color: "white"
+                    borderRadius: 20,
+                    padding: 40,
+                    width: "100%",
+                    maxWidth: 420,
+                    backdropFilter: "blur(20px)",
+                    color: "white"
                 }}
             >
                 <h1
                     style={{
-                        textAlign: "center", fontSize: "2rem", marginBottom: 30,
+                        textAlign: "center",
+                        fontSize: "2rem",
+                        marginBottom: 30,
                         background: "linear-gradient(45deg, #dc2626, #ff6b6b)",
-                        WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text"
+                        WebkitBackgroundClip: "text",
+                        WebkitTextFillColor: "transparent",
+                        backgroundClip: "text"
                     }}
                 >
                     🔑 Giriş Yap
@@ -88,14 +95,23 @@ export default function AuthForm({ onSuccess }) {
                         onChange={(e) => setCred({ ...cred, password: e.target.value })}
                         style={{ ...formInputStyle, marginBottom: 20 }}
                     />
-                    <button type="submit" style={{ ...btnStyle, width: "100%" }}>Giriş Yap</button>
+                    <button type="submit" style={{ ...btnStyle, width: "100%" }}>
+                        Giriş Yap
+                    </button>
                 </form>
 
                 <p style={{ textAlign: "center", marginTop: 20, color: "rgba(255,255,255,0.7)" }}>
                     Hesabın yok mu?
                     <button
                         onClick={() => setAuthMode("register")}
-                        style={{ marginLeft: 6, color: "#dc2626", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}
+                        style={{
+                            marginLeft: 6,
+                            color: "#dc2626",
+                            background: "none",
+                            border: "none",
+                            cursor: "pointer",
+                            textDecoration: "underline"
+                        }}
                     >
                         Kayıt Ol
                     </button>

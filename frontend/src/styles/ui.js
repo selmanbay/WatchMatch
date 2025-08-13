@@ -209,3 +209,17 @@ export const btnStyle = {
     textDecoration: "none",
     display: "inline-block"
 };
+// Tam ekran arka plan + koyu perde
+export const authPageStyle = (bg = "/images/auth-bg.webp") => ({
+    minHeight: "100vh",
+    backgroundImage: `linear-gradient(135deg, rgba(10,12,16,.78), rgba(10,12,16,.62)), url(${bg})`,
+    backgroundSize: "cover",
+    backgroundPosition: "center",
+    backgroundRepeat: "no-repeat",
+    backgroundAttachment: "fixed", // iOS'ta titreme olursa bu satırı sil
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+    color: "white",
+});
