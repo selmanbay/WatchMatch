@@ -1,14 +1,49 @@
 // src/components/AuthForm.jsx
-import React, { useState } from "react";
-import { btnStyle, formInputStyle, authPageStyle } from "../styles/ui";
+import React, { useMemo, useState } from "react";
+import {
+    btnStyle,
+    formInputStyle,
+    authPageStyle,
+    errorTextStyle,
+    withError
+} from "../styles/ui";
 import RegistrationWizard from "./register/RegistrationWizard";
 
 export default function AuthForm({ onSuccess }) {
     const [authMode, setAuthMode] = useState("login");
+
+    // ==== LOGIN state ====
     const [cred, setCred] = useState({ email: "", password: "" });
+    const [touched, setTouched] = useState({ email: false, password: false });
+    const [loginError, setLoginError] = useState("");
+
+    // Alan bazlı hatalar (input altında küçük kırmızı yazı)
+    const errors = useMemo(() => {
+        const e = {};
+        if (touched.email) {
+            const email = cred.email.trim();
+            if (!email) e.email = "Email zorunludur.";
+            else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) e.email = "Geçerli bir email giriniz.";
+        }
+        if (touched.password && !cred.password.trim()) e.password = "Şifre zorunludur.";
+        return e;
+    }, [cred, touched]);
+
+    const canLogin =
+        cred.email.trim() &&
+        /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cred.email.trim()) &&
+        cred.password.trim();
 
     const handleLogin = async (e) => {
         e.preventDefault();
+        setLoginError("");
+
+        // Form boş/hatalıysa ilerleme yok, alanları işaretle
+        if (!canLogin) {
+            setTouched({ email: true, password: true });
+            return;
+        }
+
         try {
             const res = await fetch("http://localhost:8080/api/users/login", {
                 method: "POST",
@@ -18,9 +53,22 @@ export default function AuthForm({ onSuccess }) {
             if (!res.ok) throw new Error(await res.text());
             const data = await res.json();
             onSuccess?.(data);
-            alert("✅ Giriş başarılı!");
+            // Üstte alert yok; başarılı durumda dışarıdan yönlendirme/kapama beklenir.
         } catch (err) {
-            alert("❌ Giriş hatası: " + (err?.message || "Bilinmeyen hata"));
+            setLoginError(err?.message || "Giriş başarısız.");
+        }
+    };
+
+    const onKeyDown = (e) => {
+        if (e.key === "Enter") {
+            e.preventDefault();
+            // submit akışını tetikle
+            if (!canLogin) {
+                setTouched({ email: true, password: true });
+                return;
+            }
+            // form submitine bırak
+            e.currentTarget.form?.requestSubmit?.();
         }
     };
 
@@ -56,7 +104,8 @@ export default function AuthForm({ onSuccess }) {
         <div style={authPageStyle()}>
             <div
                 style={{
-                    background: "linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05))",
+                    background:
+                        "linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05))",
                     border: "1px solid rgba(255,255,255,0.2)",
                     borderRadius: 20,
                     padding: 40,
@@ -81,21 +130,53 @@ export default function AuthForm({ onSuccess }) {
                 </h1>
 
                 <form onSubmit={handleLogin}>
+                    {/* Email */}
                     <input
                         type="email"
                         placeholder="Email"
                         value={cred.email}
                         onChange={(e) => setCred({ ...cred, email: e.target.value })}
-                        style={{ ...formInputStyle, marginBottom: 12 }}
+                        onBlur={() => setTouched((s) => ({ ...s, email: true }))}
+                        onKeyDown={onKeyDown}
+                        style={withError(
+                            { ...formInputStyle, width: "100%" },
+                            touched.email &&
+                            (!cred.email.trim() ||
+                                !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cred.email.trim()))
+                        )}
                     />
+                    {errors.email && <div style={errorTextStyle}>{errors.email}</div>}
+
+                    {/* Şifre */}
                     <input
                         type="password"
                         placeholder="Şifre"
                         value={cred.password}
                         onChange={(e) => setCred({ ...cred, password: e.target.value })}
-                        style={{ ...formInputStyle, marginBottom: 20 }}
+                        onBlur={() => setTouched((s) => ({ ...s, password: true }))}
+                        onKeyDown={onKeyDown}
+                        style={withError(
+                            { ...formInputStyle, width: "100%", marginTop: 12 },
+                            touched.password && !cred.password.trim()
+                        )}
                     />
-                    <button type="submit" style={{ ...btnStyle, width: "100%" }}>
+                    {errors.password && <div style={errorTextStyle}>{errors.password}</div>}
+
+                    {/* Backend’ten gelen giriş hatası: küçük kırmızı metin */}
+                    {loginError && (
+                        <div style={{ ...errorTextStyle, marginTop: 8 }}>{loginError}</div>
+                    )}
+
+                    <button
+                        type="submit"
+                        disabled={!canLogin}
+                        style={{
+                            ...btnStyle,
+                            width: "100%",
+                            marginTop: 12,
+                            opacity: canLogin ? 1 : 0.6
+                        }}
+                    >
                         Giriş Yap
                     </button>
                 </form>

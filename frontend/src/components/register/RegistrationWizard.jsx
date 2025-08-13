@@ -1,3 +1,4 @@
+// src/components/register/RegistrationWizard.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { authPageStyle } from "../../styles/ui";
 import StepAccount from "./StepAccount";
@@ -25,6 +26,9 @@ export default function RegistrationWizard({ onSuccess, onCancel }) {
 
     // ===== Wizard Step =====
     const [step, setStep] = useState(1);
+
+    // Küçük hata metni (sayfa üstü uyarı/alert yok!)
+    const [submitError, setSubmitError] = useState("");
 
     // Fetch countries
     useEffect(() => {
@@ -67,6 +71,12 @@ export default function RegistrationWizard({ onSuccess, onCancel }) {
         [credentials, selectedCountryId]
     );
 
+    // Step 3 zorunlulukları: sex + language (İKİSİ DE ZORUNLU)
+    const canFinish3 = useMemo(
+        () => pref.sex.trim() && pref.language.trim(),
+        [pref]
+    );
+
     const goNext = () => setStep((s) => Math.min(3, s + 1));
     const goBack = () => setStep((s) => Math.max(1, s - 1));
 
@@ -84,20 +94,32 @@ export default function RegistrationWizard({ onSuccess, onCancel }) {
         }
     }
 
-    // ===== Submit (register → linkCountry → prefs) =====
+    // ===== Submit (register → linkCountry → prefs REQUIRED) =====
     const submit = async () => {
-        try {
-            // Defensive: country must exist (step 2 zaten engelliyor ama yine de)
-            const countryIdNum =
-                selectedCountryId !== "" && selectedCountryId !== null
-                    ? Number(selectedCountryId)
-                    : NaN;
-            if (!countryIdNum || Number.isNaN(countryIdNum)) {
-                alert("❌ Lütfen ülke seçiniz.");
-                setStep(2);
-                return;
-            }
+        // Sayfa üstünde alert yok; küçük hata metnini StepPrefs altında göstereceğiz.
+        setSubmitError("");
 
+        // Step-3 guard: cinsiyet ve dil zorunlu
+        if (!pref.sex?.trim()) {
+            setStep(3);
+            return setSubmitError("Lütfen cinsiyet seçiniz.");
+        }
+        if (!pref.language?.trim()) {
+            setStep(3);
+            return setSubmitError("Lütfen dil seçiniz.");
+        }
+
+        // Ek savunma: ülke seçimi zorunlu
+        const countryIdNum =
+            selectedCountryId !== "" && selectedCountryId !== null
+                ? Number(selectedCountryId)
+                : NaN;
+        if (!countryIdNum || Number.isNaN(countryIdNum)) {
+            setStep(2);
+            return setSubmitError("Lütfen ülke seçiniz.");
+        }
+
+        try {
             // 1) REGISTER
             const regRes = await fetch("http://localhost:8080/api/users/register", {
                 method: "POST",
@@ -108,7 +130,7 @@ export default function RegistrationWizard({ onSuccess, onCancel }) {
                     username: credentials.username,
                     firstName: credentials.firstName,
                     lastName: credentials.lastName
-                    // DİKKAT: countryId'yi body'ye koymuyoruz; ayrı PUT ile bağlayacağız
+                    // NOT: countryId'yi body'ye koymuyoruz; ayrı PUT ile bağlayacağız
                 })
             });
             if (!regRes.ok) throw new Error(await regRes.text());
@@ -121,33 +143,33 @@ export default function RegistrationWizard({ onSuccess, onCancel }) {
                 if (updated) userToSet = updated;
             } catch (err) {
                 console.warn("Country bağlama başarısız:", err?.message || err);
+                // ülke bağlanamasa bile kayıt sürsün; küçük not düşmek istersen:
+                setSubmitError("Ülke bağlanırken sorun oluştu, daha sonra tekrar deneyebilirsiniz.");
             }
 
-            // 3) OPTIONAL PREFERENCES
-            const hasAnyPref =
-                (pref.sex && pref.sex.trim() !== "") ||
-                (pref.language && pref.language.trim() !== "");
-            if (hasAnyPref) {
-                const prefRes = await fetch(
-                    `http://localhost:8080/api/users/${savedUser.id}/preference`,
-                    {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            sex: pref.sex || "-",
-                            language: pref.language || "-"
-                        })
-                    }
-                );
-                if (!prefRes.ok) {
-                    console.warn("Preference kaydı başarısız:", await prefRes.text());
+            // 3) PREFERENCES (ARTIK ZORUNLU)
+            const prefRes = await fetch(
+                `http://localhost:8080/api/users/${savedUser.id}/preference`,
+                {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        sex: pref.sex,          // boş gönderilmez (yukarıda zorunlu)
+                        language: pref.language // boş gönderilmez (yukarıda zorunlu)
+                    })
                 }
+            );
+            if (!prefRes.ok) {
+                const msg = await prefRes.text();
+                throw new Error(msg || "Preference kaydı başarısız");
             }
 
+            // Başarılı — üstte alert yerine direkt callback
             onSuccess?.(userToSet);
-            alert("✅ Kayıt başarılı!");
         } catch (err) {
-            alert("❌ Kayıt hatası: " + (err?.message || "Bilinmeyen hata"));
+            setSubmitError(
+                typeof err?.message === "string" ? err.message : "Kayıt sırasında beklenmeyen bir hata oluştu."
+            );
         }
     };
 
@@ -215,7 +237,14 @@ export default function RegistrationWizard({ onSuccess, onCancel }) {
 
                 {/* STEP 3 */}
                 {step === 3 && (
-                    <StepPrefs pref={pref} setPref={setPref} onBack={goBack} onSubmit={submit} />
+                    <StepPrefs
+                        pref={pref}
+                        setPref={setPref}
+                        onBack={goBack}
+                        onSubmit={submit}
+                        canSubmit={!!canFinish3}   // butonu StepPrefs içinde disable etmek için
+                        submitError={submitError}  // küçük kırmızı metin olarak gösterilecek
+                    />
                 )}
             </div>
         </div>

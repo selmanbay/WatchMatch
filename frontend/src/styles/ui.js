@@ -209,6 +209,7 @@ export const btnStyle = {
     textDecoration: "none",
     display: "inline-block"
 };
+
 // Tam ekran arka plan + koyu perde
 export const authPageStyle = (bg = "/images/auth-bg.webp") => ({
     minHeight: "100vh",
@@ -221,5 +222,33 @@ export const authPageStyle = (bg = "/images/auth-bg.webp") => ({
     alignItems: "center",
     justifyContent: "center",
     fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
-    color: "white",
+    color: "white"
 });
+
+/* ===========================
+   ✅ Form Hata Görünümleri
+   - Input altında küçük kırmızı yazı
+   - Hatalı alanda kırmızı kenarlık
+   =========================== */
+
+export const errorTextStyle = {
+    color: "#ef4444",           // tailwind red-500
+    fontSize: "0.8rem",
+    marginTop: 4
+};
+
+export const inputErrorStyle = {
+    ...formInputStyle,
+    borderColor: "#ef4444",
+    boxShadow: "0 0 0 3px rgba(239,68,68,0.25)" // hafif kırmızı parıltı
+};
+
+export const selectErrorStyle = {
+    ...selectStyle,
+    borderColor: "#ef4444",
+    boxShadow: "0 0 0 3px rgba(239,68,68,0.25)"
+};
+
+/* İstersen kullanım kolaylığı için yardımcı fonksiyonlar: */
+export const withError = (base, hasError) =>
+    hasError ? { ...base, borderColor: "#ef4444", boxShadow: "0 0 0 3px rgba(239,68,68,0.25)" } : base;
