@@ -1,23 +1,24 @@
+// src/components/register/RegistrationWizard.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import { btnStyle } from "../../styles/ui";
+import { authPageStyle } from "../../styles/ui";
 import StepAccount from "./StepAccount";
 import StepProfile from "./StepProfile";
 import StepPrefs from "./StepPrefs";
 
 export default function RegistrationWizard({ onSuccess, onCancel }) {
-    // Tek yerde toplanan state
+    // Form state
     const [credentials, setCredentials] = useState({
         username: "", email: "", password: "", firstName: "", lastName: ""
     });
     const [pref, setPref] = useState({ sex: "", language: "" });
     const [selectedCountryId, setSelectedCountryId] = useState("");
 
-    // Ülke verileri
+    // Countries
     const [countries, setCountries] = useState([]);
     const [countriesLoading, setCountriesLoading] = useState(false);
     const [countriesError, setCountriesError] = useState(null);
 
-    // Adımlar
+    // Steps
     const [step, setStep] = useState(1);
 
     useEffect(() => {
@@ -34,9 +35,13 @@ export default function RegistrationWizard({ onSuccess, onCancel }) {
 
     // Basit validasyonlar
     const canNext1 = useMemo(() =>
-        credentials.username.trim() && credentials.email.trim() && credentials.password.trim(), [credentials]);
+            credentials.username.trim() && credentials.email.trim() && credentials.password.trim(),
+        [credentials]
+    );
     const canNext2 = useMemo(() =>
-        credentials.firstName.trim() && credentials.lastName.trim(), [credentials]);
+            credentials.firstName.trim() && credentials.lastName.trim(),
+        [credentials]
+    );
 
     const goNext = () => setStep((s) => Math.min(3, s + 1));
     const goBack = () => setStep((s) => Math.max(1, s - 1));
@@ -53,14 +58,14 @@ export default function RegistrationWizard({ onSuccess, onCancel }) {
                     username: credentials.username,
                     firstName: credentials.firstName,
                     lastName: credentials.lastName
-                    // Eğer backend countryId bekliyorsa aç:
+                    // backend countryId bekliyorsa aç:
                     // , countryId: selectedCountryId || null
                 })
             });
             if (!regRes.ok) throw new Error(await regRes.text());
             const savedUser = await regRes.json();
 
-            // 2) Opsiyonel: preference
+            // 2) Opsiyonel preferences
             if ((pref.sex && pref.sex.trim() !== "") || (pref.language && pref.language.trim() !== "")) {
                 const prefRes = await fetch(`http://localhost:8080/api/users/${savedUser.id}/preference`, {
                     method: "POST",
@@ -78,38 +83,31 @@ export default function RegistrationWizard({ onSuccess, onCancel }) {
     };
 
     return (
-        <div
-            style={{
-                minHeight: "100vh",
-                background: "linear-gradient(135deg, #0f1419 0%, #1a2332 100%)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
-            }}
-        >
+        <div style={authPageStyle()}> {/* arka plan: public/images/auth-bg.webp */}
             <div
                 style={{
-                    background: "linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05))",
+                    background: "linear-gradient(135deg, rgba(255,255,255,0.10), rgba(255,255,255,0.06))",
                     border: "1px solid rgba(255,255,255,0.2)",
                     borderRadius: 20,
-                    padding: 40,         // ↑ 30'dan 40'a
+                    padding: 40,
                     width: "100%",
-                    maxWidth: 700,       // ↑ 520'den 700'e
+                    maxWidth: 700, // geniş kutu
                     color: "white",
                     backdropFilter: "blur(20px)"
                 }}
             >
-
-            {/* Basit stepper */}
+                {/* Stepper */}
                 <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-                    {[1,2,3].map((i) => (
-                        <div key={i} style={{
-                            flex: 1,
-                            height: 6,
-                            borderRadius: 999,
-                            background: i <= step ? "linear-gradient(45deg, #dc2626, #ff6b6b)" : "rgba(255,255,255,0.2)"
-                        }}/>
+                    {[1, 2, 3].map((i) => (
+                        <div
+                            key={i}
+                            style={{
+                                flex: 1,
+                                height: 6,
+                                borderRadius: 999,
+                                background: i <= step ? "linear-gradient(45deg, #dc2626, #ff6b6b)" : "rgba(255,255,255,0.2)"
+                            }}
+                        />
                     ))}
                 </div>
 
