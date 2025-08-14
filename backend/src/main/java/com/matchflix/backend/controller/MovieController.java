@@ -1,6 +1,7 @@
 package com.matchflix.backend.controller;
-import com.matchflix.backend.model.MovieList;
-import com.matchflix.backend.service.MovieListService;
+
+import com.matchflix.backend.dto.MovieDto;
+import com.matchflix.backend.mapper.MovieMapper;
 import com.matchflix.backend.model.Genre;
 import com.matchflix.backend.model.Movie;
 import com.matchflix.backend.repository.GenreRepository;
@@ -19,42 +20,41 @@ public class MovieController {
 
     private final MovieService movieService;
     private final GenreRepository genreRepo;
-    private final MovieListService movieListService;
 
-    public MovieController(MovieService movieService, GenreRepository genreRepo, MovieListService movieListService) {
+    public MovieController(MovieService movieService, GenreRepository genreRepo) {
         this.movieService = movieService;
         this.genreRepo = genreRepo;
-        this.movieListService = movieListService;
     }
 
-    // ---- Request body swagger'da sade gözüksün diye ----
+    // Swagger'ı sade tutmak için kullandığın req model
     public static class MovieCreateReq {
+        public Long tmdbId;              // <-- ekle (tmdbId kullanıyorsan)
         public String title;
         public int releaseYear;
         public String posterUrl;
         public double rating;
         public String description;
-        public List<Long> genreIds; // <--- sadece ID'ler
+        public List<Long> genreIds;
     }
 
     @GetMapping
-    public ResponseEntity<List<Movie>> getAllMovies() {
-        return ResponseEntity.ok(movieService.getAllMovies());
+    public ResponseEntity<List<MovieDto>> getAllMovies() {
+        List<Movie> list = movieService.getAllMovies();
+        return ResponseEntity.ok(list.stream().map(MovieMapper::toDto).toList());
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<?> getMovieById(@PathVariable Long id) {
         Movie m = movieService.getMovieById(id);
-        return (m == null)
-                ? ResponseEntity.status(HttpStatus.NOT_FOUND).body("Film bulunamadı: " + id)
-                : ResponseEntity.ok(m);
+        if (m == null) return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Film bulunamadı: " + id);
+        return ResponseEntity.ok(MovieMapper.toDto(m));
     }
 
-    // ------ CREATE: body artık MovieCreateReq ------
     @PostMapping
     public ResponseEntity<?> addMovie(@RequestBody MovieCreateReq req) {
         try {
             Movie m = new Movie();
+            m.setTmdbId(req.tmdbId);        // <-- tmdbId alanın entity'de olmalı
             m.setTitle(req.title);
             m.setReleaseYear(req.releaseYear);
             m.setPosterUrl(req.posterUrl);
@@ -69,19 +69,19 @@ public class MovieController {
             }
 
             Movie saved = movieService.addMovie(m);
-            return ResponseEntity.status(HttpStatus.CREATED).body(saved);
+            return ResponseEntity.status(HttpStatus.CREATED).body(MovieMapper.toDto(saved));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body("Film eklenemedi: " + e.getMessage());
         }
     }
 
-    // ------ UPDATE: yine MovieCreateReq ------
     @PutMapping("/{id}")
     public ResponseEntity<?> updateMovie(@PathVariable Long id, @RequestBody MovieCreateReq req) {
         try {
             Movie existing = movieService.getMovieById(id);
             if (existing == null) return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Film bulunamadı: " + id);
 
+            existing.setTmdbId(req.tmdbId);
             existing.setTitle(req.title);
             existing.setReleaseYear(req.releaseYear);
             existing.setPosterUrl(req.posterUrl);
@@ -94,7 +94,7 @@ public class MovieController {
             existing.setGenres(genres);
 
             Movie updated = movieService.updateMovie(id, existing);
-            return ResponseEntity.ok(updated);
+            return ResponseEntity.ok(MovieMapper.toDto(updated));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body("Film güncellenemedi: " + e.getMessage());
         }
@@ -110,14 +110,5 @@ public class MovieController {
         } catch (Exception e) {
             return ResponseEntity.badRequest().body("Film silinemedi: " + e.getMessage());
         }
-    }
-
-    @PostMapping("/{listId}/tmdb/{tmdbId}")
-    public ResponseEntity<MovieList> addByTmdbId(
-            @PathVariable Long listId,
-            @PathVariable Long tmdbId
-    ) {
-        MovieList updated = movieListService.addByTmdbId(listId, tmdbId);
-        return ResponseEntity.ok(updated);
     }
 }

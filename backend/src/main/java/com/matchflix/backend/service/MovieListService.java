@@ -17,15 +17,17 @@ public class MovieListService {
     private final MovieRepository movieRepo;
     private final MovieApiService movieApi;   // TMDb istemcisi
     private final MovieMapper movieMapper;    // TMDb → Movie mapper
+    private final MovieService movieService;
 
     public MovieListService(MovieListRepository listRepo,
                             MovieRepository movieRepo,
                             MovieApiService movieApi,
-                            MovieMapper movieMapper) {
+                            MovieMapper movieMapper,MovieService movieService) {
         this.listRepo = listRepo;
         this.movieRepo = movieRepo;
         this.movieApi = movieApi;
         this.movieMapper = movieMapper;
+        this.movieService = movieService;
     }
 
     /**
@@ -38,7 +40,8 @@ public class MovieListService {
                 .orElseThrow(() -> new RuntimeException("Liste bulunamadı: " + listId));
 
         // DB'de film var mı?
-        Movie movie = movieRepo.findByTmdbId(tmdbId).orElse(null);
+        Movie movie = movieRepo.findByTmdbId(tmdbId)
+                .orElseGet(() -> movieService.importFromTmdb(tmdbId));
 
         // Yoksa TMDb'den doldur
         if (movie == null) {
