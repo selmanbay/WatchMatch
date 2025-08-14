@@ -7,4 +7,5 @@ import java.util.List;
 
 public interface MovieListRepository extends JpaRepository<MovieList, Long> {
     List<MovieList> findByUser_Id(Long userId); // belli bir kullanıcının listeleri
+    boolean existsByIdAndMovies_TmdbId(Long listId, Long tmdbId);
 }
