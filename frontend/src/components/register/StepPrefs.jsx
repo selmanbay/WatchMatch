@@ -38,7 +38,7 @@ export default function StepPrefs({ pref, setPref, onBack, onSubmit }) {
                     touched.sex && !pref.sex.trim()
                 )}
             >
-                <option value="">Cinsiyet (zorunlu)</option>
+                <option value="">Cinsiyet</option>
                 <option value="male">Erkek</option>
                 <option value="female">Kadın</option>
                 <option value="other">Diğer</option>
@@ -55,7 +55,7 @@ export default function StepPrefs({ pref, setPref, onBack, onSubmit }) {
                     touched.language && !pref.language.trim()
                 )}
             >
-                <option value="">Dil (zorunlu)</option>
+                <option value="">Dil</option>
                 <option value="TR">TR</option>
                 <option value="EN">EN</option>
                 <option value="DE">DE</option>

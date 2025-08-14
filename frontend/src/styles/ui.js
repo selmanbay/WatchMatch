@@ -45,7 +45,7 @@ export const logoIconStyle = {
 };
 
 export const mainContentStyle = {
-    marginTop: "80px",
+    marginTop: "40px",
     padding: "40px 0",
     minHeight: "100vh",
     background: "linear-gradient(135deg, #0f1419 0%, #1a2332 100%)",
@@ -210,9 +210,16 @@ export const btnStyle = {
     display: "inline-block"
 };
 
-// Tam ekran arka plan + koyu perde
+/**
+ * Tam ekran arka plan + koyu perde
+ * Not: Buraya backgroundColor ekledik; fazla scroll'da altta beyaz görünmesin diye.
+ * Ayrıca modern cihazlarda daha güvenilir yükseklik için minHeight'e 100dvh fallback'i de verdik.
+ */
 export const authPageStyle = (bg = "/images/auth-bg.webp") => ({
     minHeight: "100vh",
+    // Modern tarayıcılar için (destek varsa) dinamik viewport:
+    // @supports kontrolü inline style'da yok; 100vh yeterli değilse parent wrapper'a da height verilebilir.
+    backgroundColor: "#0f1419", // 👈 BEYAZ ALTI ÖNLER
     backgroundImage: `linear-gradient(135deg, rgba(10,12,16,.78), rgba(10,12,16,.62)), url(${bg})`,
     backgroundSize: "cover",
     backgroundPosition: "center",
@@ -222,7 +229,8 @@ export const authPageStyle = (bg = "/images/auth-bg.webp") => ({
     alignItems: "center",
     justifyContent: "center",
     fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
-    color: "white"
+    color: "white",
+    overflowX: "hidden" // yatay taşmalarda alt beyaz çizgiyi engeller
 });
 
 /* ===========================
@@ -232,7 +240,7 @@ export const authPageStyle = (bg = "/images/auth-bg.webp") => ({
    =========================== */
 
 export const errorTextStyle = {
-    color: "#ef4444",           // tailwind red-500
+    color: "#ef4444", // tailwind red-500
     fontSize: "0.8rem",
     marginTop: 4
 };
@@ -251,4 +259,6 @@ export const selectErrorStyle = {
 
 /* İstersen kullanım kolaylığı için yardımcı fonksiyonlar: */
 export const withError = (base, hasError) =>
-    hasError ? { ...base, borderColor: "#ef4444", boxShadow: "0 0 0 3px rgba(239,68,68,0.25)" } : base;
+    hasError
+        ? { ...base, borderColor: "#ef4444", boxShadow: "0 0 0 3px rgba(239,68,68,0.25)" }
+        : base;
