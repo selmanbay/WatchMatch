@@ -11,7 +11,8 @@ export default function MovieGrid({
                                       onAddWishlist,
                                       onAddWatched,
                                       onRemoveWishlist,   // opsiyonel
-                                      onRemoveWatched     // opsiyonel
+                                      onRemoveWatched,    // opsiyonel
+                                      userId              // ⬅️ kullanıcı id (Film Listesi için gerekli)
                                   }) {
     const [open, setOpen] = useState(false);
     const [selected, setSelected] = useState(null);
@@ -65,6 +66,7 @@ export default function MovieGrid({
                         onRemoveWishlist={onRemoveWishlist}
                         onRemoveWatched={onRemoveWatched}
                         onOpenDetail={handleOpenDetail} // karta tıkla → detay aç
+                        userId={userId}                 // ⬅️ Film Listesi paneli için gerekli
                     />
                 ))}
             </div>
