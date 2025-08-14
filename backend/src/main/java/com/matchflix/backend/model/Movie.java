@@ -12,6 +12,9 @@ public class Movie {
     @Column(name = "id")
     private Long id;
 
+    @Column(name = "tmdb_id", unique = true)
+    private Long tmdbId;
+
     @Column(nullable = false)
     private String title;
 
@@ -50,4 +53,6 @@ public class Movie {
     public void setDescription(String description) { this.description = description; }
     public List<Genre> getGenres() { return genres; }
     public void setGenres(List<Genre> genres) { this.genres = genres; }
+    public Long getTmdbId() { return tmdbId; }
+    public void setTmdbId(Long tmdbId) { this.tmdbId = tmdbId; }
 }

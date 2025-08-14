@@ -25,6 +25,11 @@ public class MovieService {
         return movieRepository.save(movie);
     }
 
+    public Movie saveOrGetMovie(Movie movie) {
+        return movieRepository.findByTmdbId(movie.getTmdbId())
+                .orElseGet(() -> movieRepository.save(movie));
+    }
+
     public Movie updateMovie(Long id, Movie updatedMovie) {
         return movieRepository.findById(id).map(movie -> {
             movie.setTitle(updatedMovie.getTitle());

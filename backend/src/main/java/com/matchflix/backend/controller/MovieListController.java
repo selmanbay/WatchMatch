@@ -12,7 +12,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
-
 import java.util.List;
 
 @RestController
@@ -27,18 +26,22 @@ public class MovieListController {
 
     public MovieListController(MovieListRepository movieListRepo,
                                MovieRepository movieRepo,
-                               UserRepository userRepo, MovieListService movieListService) {
+                               UserRepository userRepo,
+                               MovieListService movieListService) {
         this.movieListRepo = movieListRepo;
         this.movieRepo = movieRepo;
         this.userRepo = userRepo;
         this.movieListService = movieListService;
     }
 
-    // ID ile tek liste
-    @GetMapping("/{id}")
-    public MovieList getMovieListById(@PathVariable Long id) {
-        return movieListRepo.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Liste bulunamadı"));
+    // Tek liste (filmleriyle birlikte servis üzerinden)
+    @GetMapping("/{listId}")
+    public ResponseEntity<?> getList(@PathVariable Long listId) {
+        try {
+            return ResponseEntity.ok(movieListService.getListWithMovies(listId));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Liste getirilemedi: " + e.getMessage());
+        }
     }
 
     // Kullanıcının tüm listeleri
@@ -47,9 +50,7 @@ public class MovieListController {
         return movieListRepo.findByUser_Id(userId);
     }
 
-    // YENİ LİSTE OLUŞTUR (ENTITY İLE)
-    // Body'yi entity gibi gönderiyoruz: user sadece { "id": X } olsun,
-    // movies ise [{ "id": 2 }, { "id": 5 }] şeklinde id'leri içersin.
+    // Yeni liste oluştur (entity tarzı body)
     @PostMapping
     public ResponseEntity<?> addMovieList(@RequestBody MovieList body) {
         try {
@@ -57,7 +58,6 @@ public class MovieListController {
                 throw new IllegalArgumentException("user.id zorunlu");
             }
 
-            // user ve filmleri "managed" entity'lere çevir
             User owner = userRepo.findById(body.getUser().getId())
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Kullanıcı bulunamadı"));
 
@@ -69,12 +69,11 @@ public class MovieListController {
             ml.setListRating(body.getListRating());
 
             if (body.getMovies() != null && !body.getMovies().isEmpty()) {
-                // sadece id'ler önemlidir
                 List<Long> ids = body.getMovies().stream()
                         .map(Movie::getId)
                         .filter(id -> id != null)
                         .toList();
-                List<Movie> movies = movieRepo.findAllById(ids); // bulunamayan olursa eklenmez
+                List<Movie> movies = movieRepo.findAllById(ids);
                 ml.setMovies(movies);
             }
 
@@ -86,10 +85,10 @@ public class MovieListController {
             return ResponseEntity.badRequest().body("Liste eklenemedi: " + e.getMessage());
         }
     }
+
+    // Var olan movieId ile ekle
     @PostMapping("/{listId}/movies/{movieId}")
-    public ResponseEntity<?> addMovie(
-            @PathVariable Long listId,
-             @PathVariable Long movieId) {
+    public ResponseEntity<?> addMovie(@PathVariable Long listId, @PathVariable Long movieId) {
         try {
             MovieList updated = movieListService.addMovieToList(listId, movieId);
             return ResponseEntity.ok(updated);
@@ -98,10 +97,9 @@ public class MovieListController {
         }
     }
 
+    // Listeden film çıkar
     @DeleteMapping("/{listId}/movies/{movieId}")
-    public ResponseEntity<?> removeMovie(
-            @PathVariable Long listId,
-              @PathVariable Long movieId) {
+    public ResponseEntity<?> removeMovie(@PathVariable Long listId, @PathVariable Long movieId) {
         try {
             MovieList updated = movieListService.removeMovieFromList(listId, movieId);
             return ResponseEntity.ok(updated);
@@ -110,12 +108,14 @@ public class MovieListController {
         }
     }
 
-    @GetMapping("/{listId}")
-    public ResponseEntity<?> getList(@PathVariable Long listId) {
+    // TMDb ID ile: varsa getir, yoksa TMDb’den doldurup kaydet; sonra listeye ekle
+    @PostMapping("/{listId}/tmdb/{tmdbId}")
+    public ResponseEntity<?> addByTmdbId(@PathVariable Long listId, @PathVariable Long tmdbId) {
         try {
-            return ResponseEntity.ok(movieListService.getListWithMovies(listId));
+            MovieList updated = movieListService.addByTmdbId(listId, tmdbId);
+            return ResponseEntity.ok(updated);
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body("Liste getirilemedi: " + e.getMessage());
+            return ResponseEntity.badRequest().body("TMDb üzerinden ekleme başarısız: " + e.getMessage());
         }
     }
 }
