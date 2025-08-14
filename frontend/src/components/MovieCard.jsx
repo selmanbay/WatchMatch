@@ -1,35 +1,161 @@
-import React from "react";
+// src/components/MovieCard.jsx
+import React, { useState, useEffect } from "react";
 import {
-    movieCardStyle, moviePosterStyle, movieInfoStyle, movieTitleStyle,
-    movieMetaStyle, movieYearStyle, movieRatingStyle, movieGenreStyle,
-    movieActionsStyle, wishlistBtnStyle, watchedBtnStyle
+    movieCardWrapStyle,           // 🆕 dış sarmalayıcı (poster + caption)
+    movieCardStyle,               // posterin bulunduğu asıl kart
+    moviePosterStyle,
+    addToListHoverBtnStyle,
+    expandMenuStyle,
+    expandMenuItemStyle,
+    statusWrapStyle,
+    statusBadgeStyle,
+    ribbonWrapStyle,
+    movieCaptionStyle            // 🆕 başlık (kartın altında)
 } from "../styles/ui";
 
-export default function MovieCard({ movie, fromTmdb, onAddWishlist, onAddWatched }) {
+export default function MovieCard({
+                                      movie,
+                                      fromTmdb,
+                                      onAddWishlist,
+                                      onAddWatched,
+                                      onRemoveWishlist,   // opsiyonel
+                                      onRemoveWatched,    // opsiyonel
+                                      isWatched,          // opsiyonel: parent state
+                                      isInWishlist,       // opsiyonel: parent state
+                                      onOpenDetail        // opsiyonel: karta tıklayınca detay aç
+                                  }) {
+    const [isHovered, setIsHovered] = useState(false);
+    const [showMenu, setShowMenu] = useState(false);
+
+    // UI durumları (parent verir ise onu dinleriz; vermezse local state)
+    const [watchedUI, setWatchedUI] = useState(
+        Boolean(isWatched ?? movie?.isWatched ?? movie?.watched)
+    );
+    const [wishlistUI, setWishlistUI] = useState(
+        Boolean(isInWishlist ?? movie?.isInWishlist ?? movie?.wishlisted)
+    );
+
+    useEffect(() => {
+        if (typeof isWatched === "boolean") setWatchedUI(isWatched);
+    }, [isWatched]);
+
+    useEffect(() => {
+        if (typeof isInWishlist === "boolean") setWishlistUI(isInWishlist);
+    }, [isInWishlist]);
+
     const poster = fromTmdb
         ? (movie.poster_path ? `https://image.tmdb.org/t/p/w200${movie.poster_path}` : null)
         : (movie.posterUrl || null);
 
+    const addBtnStyle = {
+        ...addToListHoverBtnStyle,
+        opacity: isHovered ? 1 : 0,
+        pointerEvents: isHovered ? "auto" : "none"
+    };
+
+    const menuStyle = {
+        ...expandMenuStyle,
+        opacity: showMenu ? 1 : 0,
+        transform: `translateX(-50%) translateY(${showMenu ? "-10px" : "0"})`,
+        pointerEvents: showMenu ? "auto" : "none"
+    };
+
+    // —————— Mutually Exclusive Handlers ——————
+    const handleWishlist = (e) => {
+        e.stopPropagation();
+        if (!wishlistUI) {
+            onAddWishlist?.(movie);
+            setWishlistUI(true);
+            if (watchedUI) {
+                onRemoveWatched?.(movie);
+                setWatchedUI(false);
+            }
+        }
+        setShowMenu(false);
+    };
+
+    const handleWatched = (e) => {
+        e.stopPropagation();
+        if (!watchedUI) {
+            onAddWatched?.(movie);
+            setWatchedUI(true);
+            if (wishlistUI) {
+                onRemoveWishlist?.(movie);
+                setWishlistUI(false);
+            }
+        }
+        setShowMenu(false);
+    };
+    // ————————————————————————————————
+
     return (
-        <div style={movieCardStyle}>
-            <div style={moviePosterStyle}>
-                {poster ? (
-                    <img src={poster} alt={movie.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                ) : (
-                    <div style={{ color: "rgba(255,255,255,0.5)", textAlign: "center" }}>No Image</div>
+        <div style={movieCardWrapStyle}>
+            {/* Poster kartı */}
+            <div
+                style={movieCardStyle}
+                onClick={() => onOpenDetail?.(movie, fromTmdb)}
+                onMouseEnter={() => setIsHovered(true)}
+                onMouseLeave={() => { setIsHovered(false); setShowMenu(false); }}
+                role="button"
+                aria-label={`Open details for ${movie?.title || movie?.name || "movie"}`}
+            >
+                <div style={moviePosterStyle}>
+                    {poster ? (
+                        <img
+                            src={poster}
+                            alt={movie.title}
+                            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                        />
+                    ) : (
+                        <div style={{ color: "rgba(255,255,255,0.5)", textAlign: "center" }}>No Image</div>
+                    )}
+                </div>
+
+                {/* Hover'da görünen kırmızı buton */}
+                <button
+                    style={addBtnStyle}
+                    onClick={(e) => { e.stopPropagation(); setShowMenu((v) => !v); }}
+                >
+                    + ADD TO LIST
+                </button>
+
+                {/* Yukarı doğru açılan menü */}
+                <div
+                    style={menuStyle}
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <button style={expandMenuItemStyle} onClick={handleWishlist}>➕ İstek Listesi</button>
+                    <button style={expandMenuItemStyle} onClick={handleWatched}>✅ İzledim</button>
+                </div>
+
+                {/* 🔝 Sağ üst ikonlar */}
+                <div style={statusWrapStyle}>
+                    {watchedUI && (
+                        <div style={statusBadgeStyle} title="İzledim">
+                            {/* 👁️ Eye SVG */}
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+                                <path d="M12 5C7 5 2.7 8.1 1 12c1.7 3.9 6 7 11 7s9.3-3.1 11-7c-1.7-3.9-6-7-11-7Z" fill="#fff" opacity="0.9"/>
+                                <circle cx="12" cy="12" r="4" fill="#0b0b0b"/>
+                                <circle cx="12" cy="12" r="2" fill="#fff"/>
+                            </svg>
+                        </div>
+                    )}
+                </div>
+
+                {wishlistUI && (
+                    <div style={ribbonWrapStyle} title="İstek Listesinde">
+                        {/* 🔖 Ribbon SVG */}
+                        <svg width="24" height="36" viewBox="0 0 24 36" fill="none" aria-hidden>
+                            <path d="M0 0h24v26L12 20 0 26V0Z" fill="#dc2626"/>
+                            <rect x="0" y="0" width="24" height="3" fill="rgba(255,255,255,0.18)"/>
+                        </svg>
+                    </div>
                 )}
             </div>
-            <div style={movieInfoStyle}>
-                <h3 style={movieTitleStyle}>{movie.title}</h3>
-                <div style={movieMetaStyle}>
-                    <span style={movieYearStyle}>{fromTmdb ? movie.release_date : movie.releaseYear}</span>
-                    <span style={movieRatingStyle}>⭐ {fromTmdb ? movie.vote_average : movie.rating}</span>
-                </div>
-                {!fromTmdb && movie.genre && <div style={movieGenreStyle}>{movie.genre}</div>}
-                <div style={movieActionsStyle}>
-                    <button onClick={() => onAddWishlist(movie)} style={wishlistBtnStyle}>➕ İstek Listesi</button>
-                    <button onClick={() => onAddWatched(movie)} style={watchedBtnStyle}>✅ İzledim</button>
-                </div>
+
+            {/* Başlık: kartın ALTINDA */}
+            <div style={movieCaptionStyle} title={movie.title}>
+                {movie.title}
             </div>
         </div>
     );
