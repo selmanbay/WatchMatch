@@ -1,3 +1,4 @@
+// src/App.js
 import React, { useEffect, useState } from "react";
 import Header from "./components/Header";
 import AuthForm from "./components/AuthForm";
@@ -24,6 +25,9 @@ function App() {
 
     const [searchQuery, setSearchQuery] = useState("");
     const [searchResults, setSearchResults] = useState([]);
+
+    // Kullanıcı id'si (id veya userId alanını destekle)
+    const userId = user?.id ?? user?.userId;
 
     // Movies + TMDB (kullanıcı gelince)
     useEffect(() => {
@@ -67,7 +71,7 @@ function App() {
             .catch(() => alert("❌ Film eklenemedi!"));
     };
 
-    // Listeler
+    // Listeler (UI)
     const addToWishlist = (movie) => {
         if (!wishlist.some((m) => m.id === movie.id)) setWishlist([...wishlist, movie]);
     };
@@ -100,6 +104,7 @@ function App() {
                             fromTmdb
                             onAddWishlist={addToWishlist}
                             onAddWatched={addToWatchedlist}
+                            userId={userId}
                         />
                     </section>
                 )}
@@ -161,6 +166,7 @@ function App() {
                                 fromTmdb
                                 onAddWishlist={addToWishlist}
                                 onAddWatched={addToWatchedlist}
+                                userId={userId}
                             />
                         )}
                     </section>
@@ -180,6 +186,7 @@ function App() {
                                 emptyText="Hiç film bulunamadı"
                                 onAddWishlist={addToWishlist}
                                 onAddWatched={addToWatchedlist}
+                                userId={userId}
                             />
                         )}
                     </section>
@@ -194,6 +201,7 @@ function App() {
                             emptyText="Liste boş"
                             onAddWishlist={() => {}}
                             onAddWatched={() => {}}
+                            userId={userId}
                         />
                     </section>
 
@@ -207,6 +215,7 @@ function App() {
                             emptyText="Liste boş"
                             onAddWishlist={() => {}}
                             onAddWatched={() => {}}
+                            userId={userId}
                         />
                     </section>
 

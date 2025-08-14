@@ -85,7 +85,7 @@ export const movieGridStyle = {
 export const movieCardStyle = {
     background: "rgba(255, 255, 255, 0.05)",
     borderRadius: "15px",
-    overflow: "hidden",
+    overflow: "visible",
     transition: "all 0.3s",
     position: "relative", // ⬅️ Hover butonu ve menü için gerekli
     cursor: "pointer",
@@ -304,7 +304,6 @@ export const expandMenuItemStyle = {
     borderRadius: "10px",
     fontSize: "13px",
     cursor: "pointer",
-    backdropFilter: "blur(4px)"
 };
 
 // ▶️ Statü rozeti (göz) ve kitap ayracı (ribbon) overlay stilleri
@@ -494,5 +493,88 @@ export const movieCaptionStyle = {
     wordBreak: "break-word",
     opacity: 0.95
 };
+// === Film Listesi seçici panel ===
+export const listPickerStyle = {
+    position: "absolute",
+    bottom: 56,              // add-to-list butonunun hemen üstü
+    right: 8,                // kartın sağına hizala
+    left: "auto",
+    transform: "none",
+    width: 280,
+    background: "rgba(15,20,25,0.98)",
+    border: "1px solid rgba(255,255,255,0.12)",
+    borderRadius: 12,
+    boxShadow: "0 20px 80px rgba(0,0,0,0.5)",
+    zIndex: 50
+};
+
+export const listPickerHeaderStyle = {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    padding: "10px 12px",
+    borderBottom: "1px solid rgba(255,255,255,0.08)",
+    color: "#fff",
+    fontWeight: 700
+};
+
+export const listCloseBtnStyle = {
+    background: "transparent",
+    color: "#fff",
+    border: "1px solid rgba(255,255,255,0.2)",
+    borderRadius: 8,
+    padding: "2px 8px",
+    cursor: "pointer"
+};
+
+export const listPickerBodyStyle = {
+    padding: 12,
+    display: "flex",
+    flexDirection: "column",
+    gap: 10
+};
+
+export const listInputRowStyle = {
+    display: "grid",
+    gridTemplateColumns: "1fr auto",
+    gap: 8
+};
+
+export const listInputStyle = {
+    padding: "10px 12px",
+    borderRadius: 10,
+    background: "rgba(255,255,255,0.08)",
+    border: "1px solid rgba(255,255,255,0.15)",
+    color: "#fff",
+    outline: "none"
+};
+
+export const listCreateBtnStyle = {
+    background: "linear-gradient(45deg, #dc2626, #991b1b)",
+    color: "#fff",
+    border: "1px solid rgba(255,255,255,0.15)",
+    borderRadius: 10,
+    padding: "10px 12px",
+    cursor: "pointer",
+    fontWeight: 700
+};
+
+export const listItemStyle = {
+    textAlign: "left",
+    background: "rgba(255,255,255,0.06)",
+    color: "#fff",
+    border: "1px solid rgba(255,255,255,0.12)",
+    borderRadius: 10,
+    padding: "10px 12px",
+    cursor: "pointer"
+};
+
+export const listEmptyTextStyle = {
+    color: "rgba(255,255,255,0.7)",
+    textAlign: "center",
+    padding: "8px 0"
+};
+
 
 

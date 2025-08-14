@@ -16,7 +16,7 @@ public class MovieApiService {
     public TmdbMovieDetails getMovieDetails(long tmdbId, String language) {
         String url = UriComponentsBuilder.fromHttpUrl(baseUrl + "/movie/" + tmdbId)
                 .queryParam("api_key", apiKey)
-                .queryParam("language", language != null ? language : "tr-TR")
+                .queryParam("language", language != null ? language : "en-EN")
                 .toUriString();
 
         RestTemplate rest = new RestTemplate();

@@ -1,8 +1,8 @@
 // src/components/MovieCard.jsx
 import React, { useState, useEffect } from "react";
 import {
-    movieCardWrapStyle,           // 🆕 dış sarmalayıcı (poster + caption)
-    movieCardStyle,               // posterin bulunduğu asıl kart
+    movieCardWrapStyle,   // poster + caption sarmalayıcı
+    movieCardStyle,       // posterin bulunduğu asıl kart
     moviePosterStyle,
     addToListHoverBtnStyle,
     expandMenuStyle,
@@ -10,8 +10,9 @@ import {
     statusWrapStyle,
     statusBadgeStyle,
     ribbonWrapStyle,
-    movieCaptionStyle            // 🆕 başlık (kartın altında)
+    movieCaptionStyle      // başlık (kartın altında)
 } from "../styles/ui";
+import ListPicker from "./ListPicker"; // 🎞️ Film Listesi paneli
 
 export default function MovieCard({
                                       movie,
@@ -22,10 +23,12 @@ export default function MovieCard({
                                       onRemoveWatched,    // opsiyonel
                                       isWatched,          // opsiyonel: parent state
                                       isInWishlist,       // opsiyonel: parent state
-                                      onOpenDetail        // opsiyonel: karta tıklayınca detay aç
+                                      onOpenDetail,       // opsiyonel: karta tıklayınca detay aç
+                                      userId              // 🎯 Film listeleri için gerekli
                                   }) {
     const [isHovered, setIsHovered] = useState(false);
     const [showMenu, setShowMenu] = useState(false);
+    const [showListPicker, setShowListPicker] = useState(false);
 
     // UI durumları (parent verir ise onu dinleriz; vermezse local state)
     const [watchedUI, setWatchedUI] = useState(
@@ -60,7 +63,7 @@ export default function MovieCard({
         pointerEvents: showMenu ? "auto" : "none"
     };
 
-    // —————— Mutually Exclusive Handlers ——————
+    // —————— Tek-durum (mutually exclusive) ——————
     const handleWishlist = (e) => {
         e.stopPropagation();
         if (!wishlistUI) {
@@ -72,6 +75,7 @@ export default function MovieCard({
             }
         }
         setShowMenu(false);
+        setShowListPicker(false);
     };
 
     const handleWatched = (e) => {
@@ -85,6 +89,13 @@ export default function MovieCard({
             }
         }
         setShowMenu(false);
+        setShowListPicker(false);
+    };
+
+    const openListPicker = (e) => {
+        e.stopPropagation();
+        setShowListPicker((v) => !v); // aynı butona tekrar basınca kapansın
+        setShowMenu(true);            // menü açık kalsın
     };
     // ————————————————————————————————
 
@@ -95,7 +106,7 @@ export default function MovieCard({
                 style={movieCardStyle}
                 onClick={() => onOpenDetail?.(movie, fromTmdb)}
                 onMouseEnter={() => setIsHovered(true)}
-                onMouseLeave={() => { setIsHovered(false); setShowMenu(false); }}
+                onMouseLeave={() => { setIsHovered(false); setShowMenu(false); setShowListPicker(false); }}
                 role="button"
                 aria-label={`Open details for ${movie?.title || movie?.name || "movie"}`}
             >
@@ -114,7 +125,15 @@ export default function MovieCard({
                 {/* Hover'da görünen kırmızı buton */}
                 <button
                     style={addBtnStyle}
-                    onClick={(e) => { e.stopPropagation(); setShowMenu((v) => !v); }}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setShowMenu((v) => {
+                            const next = !v;
+                            if (!next) setShowListPicker(false); // menü kapanıyorsa paneli de kapat
+                            return next;
+                        });
+                    }}
+                    aria-haspopup="menu"
                 >
                     + ADD TO LIST
                 </button>
@@ -123,12 +142,14 @@ export default function MovieCard({
                 <div
                     style={menuStyle}
                     onClick={(e) => e.stopPropagation()}
+                    role="menu"
                 >
                     <button style={expandMenuItemStyle} onClick={handleWishlist}>➕ İstek Listesi</button>
                     <button style={expandMenuItemStyle} onClick={handleWatched}>✅ İzledim</button>
+                    <button style={expandMenuItemStyle} onClick={openListPicker}>🎞️ Film Listesi</button>
                 </div>
 
-                {/* 🔝 Sağ üst ikonlar */}
+                {/* Sağ üst durum ikonları */}
                 <div style={statusWrapStyle}>
                     {watchedUI && (
                         <div style={statusBadgeStyle} title="İzledim">
@@ -151,6 +172,15 @@ export default function MovieCard({
                         </svg>
                     </div>
                 )}
+
+                {/* 🎞️ Film Listesi paneli */}
+                <ListPicker
+                    open={showListPicker}
+                    onClose={() => setShowListPicker(false)}
+                    movie={movie}
+                    userId={userId}     // giriş yapan kullanıcının id’si
+                    fromTmdb={fromTmdb}
+                />
             </div>
 
             {/* Başlık: kartın ALTINDA */}
