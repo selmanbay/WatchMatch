@@ -4,7 +4,6 @@ import com.matchflix.backend.model.Movie;
 import com.matchflix.backend.model.MovieList;
 import com.matchflix.backend.repository.MovieListRepository;
 import com.matchflix.backend.repository.MovieRepository;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,75 +14,45 @@ public class MovieListService {
 
     private final MovieListRepository listRepo;
     private final MovieRepository movieRepo;
-    private final MovieApiService movieApi;   // TMDb istemcisi
-    private final MovieMapper movieMapper;    // TMDb → Movie mapper
-    private final MovieService movieService;
+    private final MovieService movieService; // TMDb import burada
 
     public MovieListService(MovieListRepository listRepo,
                             MovieRepository movieRepo,
-                            MovieApiService movieApi,
-                            MovieMapper movieMapper,MovieService movieService) {
+                            MovieService movieService) {
         this.listRepo = listRepo;
         this.movieRepo = movieRepo;
-        this.movieApi = movieApi;
-        this.movieMapper = movieMapper;
         this.movieService = movieService;
     }
 
     /**
-     * TMDb ID ile: varsa Movie'yi getir; yoksa TMDb'den detay çekip oluştur;
-     * sonra listeye (idempotent) ekle ve güncel listeyi döndür.
+     * TMDb ID ile: varsa Movie'yi getir; yoksa TMDb'den import et;
+     * listeye (idempotent) ekle ve filmleri fetch-join ile dolu döndür.
      */
     @Transactional
     public MovieList addByTmdbId(Long listId, Long tmdbId) {
         MovieList list = listRepo.findById(listId)
                 .orElseThrow(() -> new RuntimeException("Liste bulunamadı: " + listId));
 
-        // DB'de film var mı?
+        // 1) Film DB'de var mı? yoksa import et
         Movie movie = movieRepo.findByTmdbId(tmdbId)
                 .orElseGet(() -> movieService.importFromTmdb(tmdbId));
 
-        // Yoksa TMDb'den doldur
-        if (movie == null) {
-            MovieApiService.TmdbMovieDetails d = movieApi.getMovieDetails(tmdbId, "tr-TR");
-
-            if (d == null || d.id == null) {
-                // Fallback: NOT NULL kolonlar için güvenli varsayılanlar
-                movie = new Movie();
-                movie.setTmdbId(tmdbId);
-                movie.setTitle("(TMDb " + tmdbId + ")");
-                movie.setDescription("");
-                movie.setPosterUrl("");
-                movie.setRating(0.0);
-                movie.setReleaseYear(0);
-            } else {
-                movie = movieMapper.fromTmdb(d);
-            }
-
-            // Yarış durumlarına karşı güvenli kayıt
-            try {
-                movie = movieRepo.save(movie);
-            } catch (DataIntegrityViolationException e) {
-                movie = movieRepo.findByTmdbId(tmdbId).orElseThrow(() -> e);
-            }
-        }
-
-        // Listede zaten var mı? (effectively final id kullan)
+        // 2) Zaten listede var mı?
         final Long targetId = movie.getId();
-        boolean already = list.getMovies()
-                .stream()
+        boolean already = list.getMovies().stream()
                 .anyMatch(m -> Objects.equals(m.getId(), targetId));
 
         if (!already) {
             list.getMovies().add(movie);
-            list = listRepo.save(list);
+            listRepo.save(list); // join tablosuna yaz
         }
-        return list;
+
+        // 3) Dönmeden önce filmleri fetch-join ile yükle
+        return listRepo.findByIdWithMovies(listId)
+                .orElseThrow(() -> new RuntimeException("Liste fetch-join ile bulunamadı: " + listId));
     }
 
-    /**
-     * Var olan movieId'yi listeye ekler (idempotent).
-     */
+    /** Var olan movieId'yi listeye ekler (idempotent) ve fetch-join ile döner. */
     @Transactional
     public MovieList addMovieToList(Long listId, Long movieId) {
         MovieList list = listRepo.findById(listId)
@@ -91,36 +60,35 @@ public class MovieListService {
         Movie movie = movieRepo.findById(movieId)
                 .orElseThrow(() -> new RuntimeException("Film bulunamadı: " + movieId));
 
-        boolean already = list.getMovies()
-                .stream()
+        boolean already = list.getMovies().stream()
                 .anyMatch(m -> Objects.equals(m.getId(), movie.getId()));
 
         if (!already) {
             list.getMovies().add(movie);
-            list = listRepo.save(list);
+            listRepo.save(list);
         }
-        return list;
+
+        return listRepo.findByIdWithMovies(listId)
+                .orElseThrow(() -> new RuntimeException("Liste fetch-join ile bulunamadı: " + listId));
     }
 
-    /**
-     * Listeden filmi çıkarır.
-     */
+    /** Listeden filmi çıkarır ve fetch-join ile döner. */
     @Transactional
     public MovieList removeMovieFromList(Long listId, Long movieId) {
         MovieList list = listRepo.findById(listId)
                 .orElseThrow(() -> new RuntimeException("Liste bulunamadı: " + listId));
+
         list.getMovies().removeIf(m -> Objects.equals(m.getId(), movieId));
-        return listRepo.save(list);
+        listRepo.save(list);
+
+        return listRepo.findByIdWithMovies(listId)
+                .orElseThrow(() -> new RuntimeException("Liste fetch-join ile bulunamadı: " + listId));
     }
 
-    /**
-     * Listeyi (filmleriyle) getirir.
-     * Not: İlişki lazy ise JSON'da boş gelebilir; ihtiyaca göre @EntityGraph'lı
-     * findWithMoviesById(...) repository metodu ekleyebilirsin.
-     */
+    /** Liste + filmler (fetch-join). */
     @Transactional(readOnly = true)
     public MovieList getListWithMovies(Long listId) {
-        return listRepo.findById(listId)
+        return listRepo.findByIdWithMovies(listId)
                 .orElseThrow(() -> new RuntimeException("Liste bulunamadı: " + listId));
     }
 }

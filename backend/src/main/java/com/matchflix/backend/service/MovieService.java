@@ -12,19 +12,23 @@ import com.matchflix.backend.model.Genre;
 import com.matchflix.backend.repository.GenreRepository;
 import com.matchflix.backend.dto.MovieDto;
 import java.util.stream.Collectors;
+import org.springframework.dao.DataIntegrityViolationException;
+
 @Service
 public class MovieService {
 
     private final MovieRepository movieRepository;
     private final TmdbService tmdbService;
     private final GenreRepository genreRepository;
+    private final GenreService genreService;
 
     public MovieService(MovieRepository movieRepository,
 
-                        TmdbService tmdbService, GenreRepository genreRepository) {
+                        TmdbService tmdbService, GenreRepository genreRepository, GenreService genreService) {
         this.movieRepository = movieRepository;
         this.tmdbService = tmdbService;
         this.genreRepository = genreRepository;
+        this.genreService = genreService;
     }
 
     public List<Movie> getAllMovies() {
@@ -119,31 +123,48 @@ public class MovieService {
             return movieRepository.save(movie);
         }).orElse(null);
     }
-
-    public Movie importFromTmdb(Long tmdbId) {
-        return movieRepository.findByTmdbId(tmdbId).orElseGet(() -> {
-            // tmdbService.fetchMovie(tmdbId) ile TMDb detayını çek
-            // sonra map edip kaydet:
-            Movie m = new Movie();
-            var dto = tmdbService.fetchMovie(tmdbId);
-            m.setTmdbId(tmdbId);
-            m.setTitle(dto.getTitle());
-            m.setReleaseYear(yearFromReleaseDate(dto.getReleaseDate()));
-            m.setPosterUrl(dto.getPosterPath());
-            m.setRating(dto.getVoteAverage());
-            m.setDescription(dto.getOverview());
-            m.setGenres(resolveGenres(dto.getGenreIds())); // genreRepo ile
-            return movieRepository.save(m);
-        });
+    private static String nvl(String s, String def) {
+        return (s == null) ? def : s;
     }
-    private int yearFromReleaseDate(String releaseDate) {
-        if (releaseDate == null || releaseDate.isBlank()) return 0;
-        String s = releaseDate.trim();
-        if (s.length() >= 4) {
-            try { return Integer.parseInt(s.substring(0, 4)); }
-            catch (NumberFormatException ignore) {}
+
+    private int yearFromReleaseDate(String date) {
+        if (date == null || date.length() < 4) return 0;
+        try {
+            return Integer.parseInt(date.substring(0, 4));
+        } catch (NumberFormatException e) {
+            return 0;
         }
-        return 0;
+    }
+    public Movie importFromTmdb(Long tmdbId) {
+        return movieRepository.findByTmdbId(tmdbId)
+                .orElseGet(() -> {
+                    System.out.println("Movie not found in DB: " + tmdbId);
+
+                    var dto = tmdbService.fetchMovie(tmdbId);
+                    if (dto == null) {
+                        throw new IllegalArgumentException("TMDb'de film bulunamadı: " + tmdbId);
+                    }
+
+                    Movie m = new Movie();
+                    // dto.id yoksa yine de parametreden setleyelim:
+                    m.setTmdbId(dto.getId() != null ? dto.getId() : tmdbId);
+                    m.setTitle(nvl(dto.getTitle(), "(TMDb " + tmdbId + ")"));
+                    m.setReleaseYear(yearFromReleaseDate(dto.getReleaseDate()));
+                    m.setPosterUrl(nvl(dto.getPosterPath(), ""));
+                    m.setRating(dto.getVoteAverage());
+                    m.setDescription(nvl(dto.getOverview(), ""));
+
+                    // Genres: TMDb ID -> İsim -> Genre bul/oluştur
+                    m.setGenres(genreService.resolveGenres(dto.getGenreIds()));
+
+                    // Yarış durumu ihtimaline karşı güvenli kayıt
+                    try {
+                        return movieRepository.save(m);   // <-- Movie döndür!
+                    } catch (DataIntegrityViolationException e) {
+                        // Bu sırada başka thread eklediyse tekrar bulup dön
+                        return movieRepository.findByTmdbId(tmdbId).orElseThrow(() -> e);
+                    }
+                });
     }
     public void deleteMovie(Long id) {
         movieRepository.deleteById(id);

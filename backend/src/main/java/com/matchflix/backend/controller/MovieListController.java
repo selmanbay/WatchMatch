@@ -107,13 +107,11 @@ public class MovieListController {
             return ResponseEntity.badRequest().body("Film çıkarılamadı: " + e.getMessage());
         }
     }
-
-    // TMDb ID ile: varsa getir, yoksa TMDb’den doldurup kaydet; sonra listeye ekle
     @PostMapping("/{listId}/tmdb/{tmdbId}")
     public ResponseEntity<?> addByTmdbId(@PathVariable Long listId, @PathVariable Long tmdbId) {
         try {
             MovieList updated = movieListService.addByTmdbId(listId, tmdbId);
-            return ResponseEntity.ok(updated);
+            return ResponseEntity.ok(updated); // artık movies dolu dönecek
         } catch (Exception e) {
             return ResponseEntity.badRequest().body("TMDb üzerinden ekleme başarısız: " + e.getMessage());
         }
