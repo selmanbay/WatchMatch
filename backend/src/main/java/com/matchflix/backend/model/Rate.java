@@ -15,7 +15,7 @@ public class Rate {
     private User user;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "movie_id", nullable = false)
+    @JoinColumn(name="movie_id", referencedColumnName="id")
     private Movie movie;
 
     @Column(nullable = false)

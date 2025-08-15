@@ -6,13 +6,16 @@ import com.matchflix.backend.model.User;
 import com.matchflix.backend.repository.MovieListRepository;
 import com.matchflix.backend.repository.MovieRepository;
 import com.matchflix.backend.repository.UserRepository;
+import com.matchflix.backend.service.MovieImportService;
 import com.matchflix.backend.service.MovieListService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/movie-lists")
@@ -23,15 +26,18 @@ public class MovieListController {
     private final MovieRepository movieRepo;
     private final UserRepository userRepo;
     private final MovieListService movieListService;
+    private final MovieImportService movieImportService; // <-- eklendi
 
     public MovieListController(MovieListRepository movieListRepo,
                                MovieRepository movieRepo,
                                UserRepository userRepo,
-                               MovieListService movieListService) {
+                               MovieListService movieListService,
+                               MovieImportService movieImportService) { // <-- eklendi
         this.movieListRepo = movieListRepo;
         this.movieRepo = movieRepo;
         this.userRepo = userRepo;
         this.movieListService = movieListService;
+        this.movieImportService = movieImportService; // <-- eklendi
     }
 
     // Tek liste (filmleriyle birlikte servis üzerinden)
@@ -107,11 +113,31 @@ public class MovieListController {
             return ResponseEntity.badRequest().body("Film çıkarılamadı: " + e.getMessage());
         }
     }
+
+    // TMDb id ile ekle: Movie + movie_features garanti, sonra listeye iliştir
     @PostMapping("/{listId}/tmdb/{tmdbId}")
+    @Transactional
     public ResponseEntity<?> addByTmdbId(@PathVariable Long listId, @PathVariable Long tmdbId) {
         try {
-            MovieList updated = movieListService.addByTmdbId(listId, tmdbId);
-            return ResponseEntity.ok(updated); // artık movies dolu dönecek
+            // 1) Liste var mı?
+            movieListRepo.findById(listId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Liste bulunamadı: " + listId));
+
+            // 2) Filmi ve FEATURES'ı garanti et (insert/update)
+            Movie movie = movieImportService.ensureMovieAndFeaturesByTmdbId(tmdbId);
+
+            // 3) Listeye ekle (mevcut servisle)
+            MovieList updated = movieListService.addMovieToList(listId, movie.getId());
+
+            // 4) Basit bir özet döndür (istersen updated'i döndürmeye devam edebilirsin)
+            return ResponseEntity.ok(Map.of(
+                    "list_id", updated.getId(),
+                    "movie_id", movie.getId(),
+                    "tmdb_id", movie.getTmdbId(),
+                    "title", movie.getTitle()
+            ));
+        } catch (ResponseStatusException e) {
+            throw e;
         } catch (Exception e) {
             return ResponseEntity.badRequest().body("TMDb üzerinden ekleme başarısız: " + e.getMessage());
         }

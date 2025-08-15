@@ -1,5 +1,6 @@
 package com.matchflix.backend.service;
 
+import com.matchflix.backend.dto.RegisterRequest;
 import com.matchflix.backend.model.User;
 import com.matchflix.backend.model.Country;
 import com.matchflix.backend.repository.CountryRepository;
@@ -79,6 +80,7 @@ public class UserService {
         }
         return user;
     }
+
     public User setCountry(Long userId, Long countryId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found: " + userId));
@@ -91,7 +93,38 @@ public class UserService {
         // JSON’da country null görünmesin diye fetch-join ile geri yükleyip dönüyoruz
         return userRepository.findByIdFetchCountry(user.getId()).orElse(user);
     }
+    public User registerUserFromDto(RegisterRequest req) {
+        if (req == null) throw new IllegalArgumentException("Kullanıcı bilgisi boş olamaz.");
 
+        String email = safe(req.getEmail()).toLowerCase();
+        if (email.isBlank()) throw new IllegalArgumentException("Email zorunludur.");
+        if (userRepository.findByEmail(email) != null) throw new RuntimeException("Email zaten kayıtlı!");
+
+        String rawPassword = safe(req.getPassword());
+        if (rawPassword.length() < 6) throw new IllegalArgumentException("Şifre en az 6 karakter olmalı.");
+        String encoded = passwordEncoder.encode(rawPassword);
+
+        String username  = safe(req.getUsername());
+        if (username.isBlank()) throw new IllegalArgumentException("Kullanıcı adı zorunludur.");
+
+        String firstName = safe(req.getFirstName());
+        String lastName  = safe(req.getLastName());
+        if (firstName.isBlank()) firstName = "-";
+        if (lastName.isBlank())  lastName  = "-";
+
+        User user = new User();
+        user.setEmail(email);
+        user.setPassword(encoded);
+        user.setUsername(username);
+        user.setFirstName(firstName);
+        user.setLastName(lastName);
+
+        try {
+            return userRepository.save(user);
+        } catch (DataIntegrityViolationException e) {
+            throw new RuntimeException("Kullanıcı kaydedilemedi: " + e.getMostSpecificCause().getMessage(), e);
+        }
+    }
     public Optional<User> getUserById(Long id) {
         return userRepository.findById(id);
     }

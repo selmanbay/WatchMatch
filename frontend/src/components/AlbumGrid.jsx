@@ -9,7 +9,7 @@ import {
     albumCountPillStyle,
     albumChangeCoverBtnStyle
 } from "../styles/ui";
-import { normalizePosterPath, pickPoster } from "../utils/images";
+import { normalizePosterPath } from "../utils/images";
 
 export default function AlbumGrid({ albums = [], onOpen, onChangeCover }) {
     return (
@@ -17,10 +17,28 @@ export default function AlbumGrid({ albums = [], onOpen, onChangeCover }) {
             {albums.map((a) => {
                 const key = a.id ?? a.title ?? Math.random();
 
-                // Kapak: listeden gelen alanlar + ilk filmin posteri
-                const coverUrl =
-                    normalizePosterPath(a.image || a.listImage || a.cover || a.coverUrl) ||
-                    pickPoster((a.movies || [])[0]);
+                // Kapak URL'ini belirle
+                const coverUrl = (() => {
+                    // Liste kapağını kontrol et (placeholder hariç)
+                    const listCover = a.image || a.listImage || a.list_image || a.cover || a.coverUrl;
+
+                    if (listCover && !listCover.includes('list-placeholder.png')) {
+                        return normalizePosterPath(listCover);
+                    }
+
+                    // İlk filmin poster'ını kontrol et (posterUrl alanını kullan)
+                    const firstMovie = (a.movies || [])[0];
+                    if (firstMovie?.posterUrl) {
+                        return normalizePosterPath(firstMovie.posterUrl);
+                    }
+
+                    // poster_url alanını da kontrol et (eski format için)
+                    if (firstMovie?.poster_url) {
+                        return normalizePosterPath(firstMovie.poster_url);
+                    }
+
+                    return null;
+                })();
 
                 return (
                     <div
@@ -31,7 +49,7 @@ export default function AlbumGrid({ albums = [], onOpen, onChangeCover }) {
                         tabIndex={0}
                     >
                         <div style={{ ...albumCoverStyle, position: "relative" }}>
-                            {coverUrl && (
+                            {coverUrl ? (
                                 <img
                                     src={coverUrl}
                                     alt={a.title || "Kapak"}
@@ -42,11 +60,31 @@ export default function AlbumGrid({ albums = [], onOpen, onChangeCover }) {
                                         height: "100%",
                                         objectFit: "cover"
                                     }}
-                                    onError={(e) => { e.currentTarget.style.display = "none"; }}
+                                    onError={(e) => {
+                                        e.currentTarget.style.display = "none";
+                                        // Debug için hangi URL'de hata olduğunu göster
+                                        console.log('Kapak yüklenemedi:', coverUrl);
+                                    }}
                                 />
+                            ) : (
+                                // Kapak yoksa placeholder göster
+                                <div style={{
+                                    position: "absolute",
+                                    inset: 0,
+                                    backgroundColor: "#f0f0f0",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    color: "#666",
+                                    fontSize: "14px"
+                                }}>
+                                    Kapak Yok
+                                </div>
                             )}
 
-                            <span style={albumCountPillStyle}>{a.count ?? 0}</span>
+                            <span style={albumCountPillStyle}>
+                                {a.count ?? (a.movies?.length || 0)}
+                            </span>
 
                             {a.editable && (
                                 <button

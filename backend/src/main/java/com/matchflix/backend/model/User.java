@@ -27,19 +27,10 @@ public class User {
     @Column(name = "first_name", nullable = false) private String firstName;
     @Column(name = "last_name",  nullable = false) private String lastName;
 
-    // Kullanıcının sahip olduğu listelerin id'leri (opsiyonel denormalizasyon)
-    @ElementCollection(fetch = FetchType.LAZY)
-    @CollectionTable(name = "user_list_ids", joinColumns = @JoinColumn(name = "user_id"))
-    @Column(name = "list_id", nullable = false)
-    private Set<Long> ownListIds = new HashSet<>();
-
     @OneToMany(mappedBy = "user", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
     @JsonIgnore
     private List<MovieList> movieLists = new ArrayList<>();
 
-    @OneToMany(mappedBy = "user", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
-    @JsonIgnore
-    private List<Rate> ratings = new ArrayList<>();
 
     @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY, optional = true)
     @JsonIgnore
@@ -76,14 +67,8 @@ public class User {
     public String getLastName() { return lastName; }
     public void setLastName(String lastName) { this.lastName = lastName; }
 
-    public Set<Long> getOwnListIds() { return ownListIds; }
-    public void setOwnListIds(Set<Long> ownListIds) { this.ownListIds = ownListIds; }
-
     public List<MovieList> getMovieLists() { return movieLists; }
     public void setMovieLists(List<MovieList> movieLists) { this.movieLists = movieLists; }
-
-    public List<Rate> getRatings() { return ratings; }
-    public void setRatings(List<Rate> ratings) { this.ratings = ratings; }
 
     public UserPreference getPreference() { return preference; }
     public void setPreference(UserPreference preference) { this.preference = preference; }
