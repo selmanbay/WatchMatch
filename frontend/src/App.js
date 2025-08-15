@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import Header from "./components/Header";
 import AuthForm from "./components/AuthForm";
 import MovieGrid from "./components/MovieGrid";
+import ProfilePage from "./pages/ProfilePage";
 import {
     mainContentStyle, containerStyle, sectionHeaderStyle, sectionTitleStyle,
     formStyle, formRowStyle, formInputStyle, btnStyle
@@ -10,6 +11,7 @@ import {
 
 function App() {
     const [user, setUser] = useState(null);
+    const [view, setView] = useState("home"); // "home" | "profile"
 
     const [movies, setMovies] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -26,7 +28,7 @@ function App() {
     const [searchQuery, setSearchQuery] = useState("");
     const [searchResults, setSearchResults] = useState([]);
 
-    // Kullanıcı id'si (id veya userId alanını destekle)
+    // Kullanıcı id (id veya userId)
     const userId = user?.id ?? user?.userId;
 
     // Movies + TMDB (kullanıcı gelince)
@@ -79,18 +81,46 @@ function App() {
         if (!watchedlist.some((m) => m.id === movie.id)) setWatchedlist([...watchedlist, movie]);
     };
 
-    // Login/Register ekranı
+    // Login/Register
     if (user === null) {
-        return <AuthForm onSuccess={setUser} />;
+        return <AuthForm onSuccess={(u) => { setUser(u); setView("home"); }} />;
     }
 
+    // Profil sayfası
+    if (view === "profile") {
+        return (
+            <>
+                <Header
+                    user={user}
+                    searchQuery={searchQuery}
+                    setSearchQuery={setSearchQuery}
+                    onSearch={handleSearch}
+                    onLogout={() => { setUser(null); setView("home"); }}
+                    onProfile={() => setView("profile")} // Header'dan tekrar girilebilir
+                />
+                <ProfilePage
+                    user={user}
+                    userId={userId}
+                    wishlist={wishlist}
+                    watchedlist={watchedlist}
+                    onBack={() => setView("home")}
+                    onAddWishlist={(m) => addToWishlist(m)}      // 🔴 eklendi
+                    onAddWatched={(m) => addToWatchedlist(m)}    // 🔴 eklendi
+                />
+            </>
+        );
+    }
+
+    // Ana sayfa
     return (
         <div>
             <Header
+                user={user}
                 searchQuery={searchQuery}
                 setSearchQuery={setSearchQuery}
                 onSearch={handleSearch}
                 onLogout={() => setUser(null)}
+                onProfile={() => setView("profile")}
             />
 
             <main style={mainContentStyle}>
@@ -142,7 +172,7 @@ function App() {
                                 style={{
                                     fontSize: "1.2rem",
                                     color: "rgba(255, 255, 255, 0.8)",
-                                    marginBottom: "30px)",
+                                    marginBottom: "30px",
                                     lineHeight: "1.6"
                                 }}
                             >

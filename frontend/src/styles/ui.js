@@ -1,5 +1,6 @@
 // src/styles/ui.js
 
+/* ===== Header & Layout ===== */
 export const headerStyle = {
     background: "rgba(15, 20, 25, 0.95)",
     backdropFilter: "blur(10px)",
@@ -75,6 +76,7 @@ export const sectionTitleStyle = {
     gap: "10px"
 };
 
+/* ===== Movie Grid (cards) ===== */
 export const movieGridStyle = {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
@@ -87,7 +89,7 @@ export const movieCardStyle = {
     borderRadius: "15px",
     overflow: "visible",
     transition: "all 0.3s",
-    position: "relative", // ⬅️ Hover butonu ve menü için gerekli
+    position: "relative",
     cursor: "pointer",
     border: "1px solid rgba(255, 255, 255, 0.1)"
 };
@@ -163,6 +165,29 @@ export const watchedBtnStyle = {
     border: "1px solid rgba(34, 197, 94, 0.3)"
 };
 
+/* ===== Card + caption wrap ===== */
+export const movieCardWrapStyle = {
+    display: "flex",
+    flexDirection: "column",
+    gap: 10
+};
+
+export const movieCaptionStyle = {
+    fontSize: "1rem",
+    fontWeight: 600,
+    color: "white",
+    textAlign: "left",
+    padding: "4px 2px",
+    lineHeight: 1.3,
+    overflow: "hidden",
+    display: "-webkit-box",
+    WebkitLineClamp: 2,
+    WebkitBoxOrient: "vertical",
+    wordBreak: "break-word",
+    opacity: 0.95
+};
+
+/* ===== Forms ===== */
 export const formStyle = {
     background: "rgba(255, 255, 255, 0.05)",
     border: "1px solid rgba(255, 255, 255, 0.1)",
@@ -180,7 +205,7 @@ export const formRowStyle = {
 
 export const formInputStyle = {
     width: "100%",
-    boxSizing: "border-box", // taşmayı engeller, select ile aynı genişlikte kalır
+    boxSizing: "border-box",
     padding: "15px",
     background: "rgba(255, 255, 255, 0.1)",
     border: "1px solid rgba(255, 255, 255, 0.2)",
@@ -210,35 +235,26 @@ export const btnStyle = {
     display: "inline-block"
 };
 
-/**
- * Tam ekran arka plan + koyu perde
- * Not: Buraya backgroundColor ekledik; fazla scroll'da altta beyaz görünmesin diye.
- * Ayrıca modern cihazlarda daha güvenilir yükseklik için minHeight'e 100dvh fallback'i de verdik.
- */
+/* ===== Auth ===== */
 export const authPageStyle = (bg = "/images/auth-bg.webp") => ({
     minHeight: "100vh",
-    backgroundColor: "#0f1419", // 👈 BEYAZ ALTI ÖNLER
+    backgroundColor: "#0f1419",
     backgroundImage: `linear-gradient(135deg, rgba(10,12,16,.78), rgba(10,12,16,.62)), url(${bg})`,
     backgroundSize: "cover",
     backgroundPosition: "center",
     backgroundRepeat: "no-repeat",
-    backgroundAttachment: "fixed", // iOS'ta titreme olursa bu satırı sil
+    backgroundAttachment: "fixed",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
     color: "white",
-    overflowX: "hidden" // yatay taşmalarda alt beyaz çizgiyi engeller
+    overflowX: "hidden"
 });
 
-/* ===========================
-   ✅ Form Hata Görünümleri
-   - Input altında küçük kırmızı yazı
-   - Hatalı alanda kırmızı kenarlık
-   =========================== */
-
+/* ===== Form errors ===== */
 export const errorTextStyle = {
-    color: "#ef4444", // tailwind red-500
+    color: "#ef4444",
     fontSize: "0.8rem",
     marginTop: 4
 };
@@ -246,7 +262,7 @@ export const errorTextStyle = {
 export const inputErrorStyle = {
     ...formInputStyle,
     borderColor: "#ef4444",
-    boxShadow: "0 0 0 3px rgba(239,68,68,0.25)" // hafif kırmızı parıltı
+    boxShadow: "0 0 0 3px rgba(239,68,68,0.25)"
 };
 
 export const selectErrorStyle = {
@@ -255,23 +271,18 @@ export const selectErrorStyle = {
     boxShadow: "0 0 0 3px rgba(239,68,68,0.25)"
 };
 
-/* İstersen kullanım kolaylığı için yardımcı fonksiyonlar: */
 export const withError = (base, hasError) =>
     hasError
         ? { ...base, borderColor: "#ef4444", boxShadow: "0 0 0 3px rgba(239,68,68,0.25)" }
         : base;
 
-/* =========================================================
-   🆕 Hover'da görünen kırmızı "ADD TO LIST" butonu stilleri
-   ve tıklandığında yukarı doğru açılan menü stilleri
-   ========================================================= */
-
+/* ===== Card hover menu ===== */
 export const addToListHoverBtnStyle = {
     position: "absolute",
     bottom: 16,
     left: "50%",
     transform: "translateX(-50%)",
-    background: "#dc2626",        // kırmızı
+    background: "#dc2626",
     color: "#ffffff",
     border: "1px solid rgba(255,255,255,0.15)",
     padding: "10px 18px",
@@ -303,11 +314,10 @@ export const expandMenuItemStyle = {
     padding: "8px 12px",
     borderRadius: "10px",
     fontSize: "13px",
-    cursor: "pointer",
+    cursor: "pointer"
 };
 
-// ▶️ Statü rozeti (göz) ve kitap ayracı (ribbon) overlay stilleri
-
+/* ===== Top-right status on card ===== */
 export const statusWrapStyle = {
     position: "absolute",
     top: 10,
@@ -316,7 +326,7 @@ export const statusWrapStyle = {
     flexDirection: "column",
     gap: 8,
     zIndex: 7,
-    pointerEvents: "none" // Hover/tıklamayı engellemesin
+    pointerEvents: "none"
 };
 
 export const statusBadgeStyle = {
@@ -337,13 +347,14 @@ export const statusBadgeStyle = {
 export const ribbonWrapStyle = {
     position: "absolute",
     top: 0,
-    right: 10,         // karta çok yaslanmasın diye 10px içeriden
+    right: 10,
     width: 24,
     height: 36,
     zIndex: 7,
     pointerEvents: "none"
 };
-// === Movie Detail Modal ===
+
+/* ===== Movie Detail modal ===== */
 export const detailOverlayStyle = {
     position: "fixed",
     inset: 0,
@@ -374,7 +385,8 @@ export const detailHeaderStyle = {
 export const detailHeaderShadeStyle = {
     position: "absolute",
     inset: 0,
-    background: "linear-gradient(180deg, rgba(0,0,0,.45) 0%, rgba(0,0,0,.6) 45%, rgba(15,20,25,.95) 100%)"
+    background:
+        "linear-gradient(180deg, rgba(0,0,0,.45) 0%, rgba(0,0,0,.6) 45%, rgba(15,20,25,.95) 100%)"
 };
 
 export const detailCloseBtnStyle = {
@@ -471,41 +483,30 @@ export const detailOverviewStyle = {
     borderRadius: "12px",
     padding: "14px"
 };
-// Kart + başlık sarmalayıcı (poster üstte, isim altta)
-export const movieCardWrapStyle = {
+
+/* ===== Film Listesi MODAL (merkez) ===== */
+export const listModalOverlayStyle = {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(0,0,0,0.6)",
+    backdropFilter: "blur(2px)",
+    zIndex: 3000,
     display: "flex",
-    flexDirection: "column",
-    gap: 10
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 16
 };
 
-// Başlık, kartın ALTINDA gözüksün
-export const movieCaptionStyle = {
-    fontSize: "1rem",
-    fontWeight: 600,
-    color: "white",
-    textAlign: "left",
-    padding: "4px 2px",
-    lineHeight: 1.3,
-    overflow: "hidden",
-    display: "-webkit-box",
-    WebkitLineClamp: 2,      // iki satırda kes
-    WebkitBoxOrient: "vertical",
-    wordBreak: "break-word",
-    opacity: 0.95
-};
-// === Film Listesi seçici panel ===
-export const listPickerStyle = {
-    position: "absolute",
-    bottom: 56,              // add-to-list butonunun hemen üstü
-    right: 8,                // kartın sağına hizala
-    left: "auto",
-    transform: "none",
-    width: 280,
-    background: "rgba(15,20,25,0.98)",
+export const listModalCardStyle = {
+    width: "min(320px, 92vw)", // kompakt
+    maxHeight: "60vh",
+    display: "flex",
+    flexDirection: "column",
+    background: "rgba(20,24,28,0.98)",
     border: "1px solid rgba(255,255,255,0.12)",
-    borderRadius: 12,
-    boxShadow: "0 20px 80px rgba(0,0,0,0.5)",
-    zIndex: 50
+    borderRadius: "14px",
+    boxShadow: "0 30px 120px rgba(0,0,0,0.6)",
+    overflow: "hidden"
 };
 
 export const listPickerHeaderStyle = {
@@ -516,7 +517,18 @@ export const listPickerHeaderStyle = {
     padding: "10px 12px",
     borderBottom: "1px solid rgba(255,255,255,0.08)",
     color: "#fff",
-    fontWeight: 700
+    fontWeight: 800,
+    fontSize: "20px"
+};
+
+export const listPickerBodyStyle = {
+    padding: 12,
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+    overflowY: "auto",
+    maxHeight: "48vh",
+    fontSize: "15px"
 };
 
 export const listCloseBtnStyle = {
@@ -525,14 +537,8 @@ export const listCloseBtnStyle = {
     border: "1px solid rgba(255,255,255,0.2)",
     borderRadius: 8,
     padding: "2px 8px",
-    cursor: "pointer"
-};
-
-export const listPickerBodyStyle = {
-    padding: 12,
-    display: "flex",
-    flexDirection: "column",
-    gap: 10
+    cursor: "pointer",
+    fontSize: "14px"
 };
 
 export const listInputRowStyle = {
@@ -547,7 +553,8 @@ export const listInputStyle = {
     background: "rgba(255,255,255,0.08)",
     border: "1px solid rgba(255,255,255,0.15)",
     color: "#fff",
-    outline: "none"
+    outline: "none",
+    fontSize: "14px"
 };
 
 export const listCreateBtnStyle = {
@@ -557,24 +564,173 @@ export const listCreateBtnStyle = {
     borderRadius: 10,
     padding: "10px 12px",
     cursor: "pointer",
-    fontWeight: 700
-};
-
-export const listItemStyle = {
-    textAlign: "left",
-    background: "rgba(255,255,255,0.06)",
-    color: "#fff",
-    border: "1px solid rgba(255,255,255,0.12)",
-    borderRadius: 10,
-    padding: "10px 12px",
-    cursor: "pointer"
+    fontWeight: 800,
+    fontSize: "14px"
 };
 
 export const listEmptyTextStyle = {
-    color: "rgba(255,255,255,0.7)",
+    color: "rgba(255,255,255,0.75)",
     textAlign: "center",
-    padding: "8px 0"
+    padding: "8px 0",
+    fontSize: "14px"
 };
 
+/* === Liste satırı + checkbox (kırmızı tik) === */
+export const listRowStyle = {
+    display: "grid",
+    gridTemplateColumns: "28px 1fr",
+    alignItems: "center",
+    gap: 10,
+    background: "rgba(255,255,255,0.06)",
+    border: "1px solid rgba(255,255,255,0.12)",
+    borderRadius: 10,
+    padding: "10px 12px"
+};
 
+export const listCheckStyle = (selected) => ({
+    width: 20,
+    height: 20,
+    borderRadius: 6,
+    border: `1px solid ${selected ? "#dc2626" : "rgba(255,255,255,0.35)"}`,
+    background: selected ? "rgba(220,38,38,0.12)" : "rgba(255,255,255,0.05)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    outline: "none"
+});
 
+export const listNameStyle = {
+    color: "#fff",
+    fontSize: 15,
+    lineHeight: 1.25,
+    userSelect: "none"
+};
+
+export const listCheckIconStyle = {
+    width: 22,
+    height: 22
+};
+
+/* ===== Avatar Menu (profil dropdown) ===== */
+export const avatarWrapperStyle = {
+    position: "relative",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center"
+};
+
+export const avatarBtnStyle = {
+    width: 36,
+    height: 36,
+    borderRadius: "50%",
+    overflow: "hidden",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: "rgba(255,255,255,0.08)",
+    border: "1px solid rgba(255,255,255,0.2)",
+    cursor: "pointer",
+    outline: "none"
+};
+
+export const avatarImgStyle = {
+    width: "100%",
+    height: "100%",
+    objectFit: "cover"
+};
+
+export const avatarFallbackStyle = {
+    fontSize: 12,
+    fontWeight: 700,
+    letterSpacing: 0.5,
+    color: "#fff"
+};
+
+export const avatarMenuStyle = {
+    position: "absolute",
+    top: 46,
+    right: 0,
+    minWidth: 180,
+    background: "rgba(20,20,20,0.98)",
+    border: "1px solid rgba(255,255,255,0.1)",
+    borderRadius: 12,
+    padding: 6,
+    boxShadow: "0 10px 30px rgba(0,0,0,0.45)",
+    backdropFilter: "blur(10px)",
+    zIndex: 1200
+};
+
+export const avatarMenuItemStyle = {
+    padding: "10px 12px",
+    borderRadius: 10,
+    cursor: "pointer",
+    userSelect: "none",
+    fontSize: 14,
+    color: "white"
+};
+
+/* ===== Album Grid (liste/albüm kartları) ===== */
+export const albumGridStyle = {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+    gap: 20,
+    marginBottom: 40
+};
+
+export const albumCardStyle = {
+    background: "rgba(255,255,255,0.05)",
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.1)",
+    overflow: "hidden",
+    cursor: "pointer",
+    transition: "transform .18s ease, box-shadow .18s ease",
+    boxShadow: "0 8px 24px rgba(0,0,0,0.25)"
+};
+
+export const albumCoverStyle = {
+    position: "relative",
+    width: "100%",
+    height: 220,
+    background: "linear-gradient(135deg, #1a2332, #0f1419)"
+};
+
+export const albumTitleStyle = {
+    fontWeight: 800,
+    fontSize: "1rem",
+    color: "#fff",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis"
+};
+
+export const albumMetaStyle = {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.8)",
+    marginTop: 4
+};
+
+export const albumCountPillStyle = {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    padding: "6px 10px",
+    borderRadius: 999,
+    background: "rgba(0,0,0,0.55)",
+    border: "1px solid rgba(255,255,255,0.15)",
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: 700
+};
+
+export const albumChangeCoverBtnStyle = {
+    position: "absolute",
+    left: 10,
+    bottom: 10,
+    padding: "6px 8px",
+    borderRadius: 10,
+    background: "rgba(0,0,0,0.55)",
+    border: "1px solid rgba(255,255,255,0.15)",
+    color: "#fff",
+    cursor: "pointer"
+};

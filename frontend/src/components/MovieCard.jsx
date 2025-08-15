@@ -12,7 +12,8 @@ import {
     ribbonWrapStyle,
     movieCaptionStyle      // başlık (kartın altında)
 } from "../styles/ui";
-import ListPicker from "./ListPicker"; // 🎞️ Film Listesi paneli
+import { pickPoster } from "../utils/images";   // ✅ poster normalizer
+import ListPicker from "./ListPicker";          // 🎞️ Film Listesi paneli
 
 export default function MovieCard({
                                       movie,
@@ -46,9 +47,14 @@ export default function MovieCard({
         if (typeof isInWishlist === "boolean") setWishlistUI(isInWishlist);
     }, [isInWishlist]);
 
-    const poster = fromTmdb
-        ? (movie.poster_path ? `https://image.tmdb.org/t/p/w200${movie.poster_path}` : null)
-        : (movie.posterUrl || null);
+    // ✅ Poster'i tüm olası alanlardan toparla
+    const poster = pickPoster(movie);
+    const title =
+        movie?.title ||
+        movie?.name ||
+        movie?.original_title ||
+        movie?.originalName ||
+        "Untitled";
 
     const addBtnStyle = {
         ...addToListHoverBtnStyle,
@@ -106,19 +112,29 @@ export default function MovieCard({
                 style={movieCardStyle}
                 onClick={() => onOpenDetail?.(movie, fromTmdb)}
                 onMouseEnter={() => setIsHovered(true)}
-                onMouseLeave={() => { setIsHovered(false); setShowMenu(false); setShowListPicker(false); }}
+                onMouseLeave={() => {
+                    setIsHovered(false);
+                    setShowMenu(false);
+                    setShowListPicker(false);
+                }}
                 role="button"
-                aria-label={`Open details for ${movie?.title || movie?.name || "movie"}`}
+                aria-label={`Open details for ${title}`}
             >
                 <div style={moviePosterStyle}>
                     {poster ? (
                         <img
                             src={poster}
-                            alt={movie.title}
+                            alt={title}
                             style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                            onError={(e) => {
+                                // görsel bozuksa graceful fallback
+                                e.currentTarget.style.display = "none";
+                            }}
                         />
                     ) : (
-                        <div style={{ color: "rgba(255,255,255,0.5)", textAlign: "center" }}>No Image</div>
+                        <div style={{ color: "rgba(255,255,255,0.5)", textAlign: "center" }}>
+                            No Image
+                        </div>
                     )}
                 </div>
 
@@ -139,14 +155,16 @@ export default function MovieCard({
                 </button>
 
                 {/* Yukarı doğru açılan menü */}
-                <div
-                    style={menuStyle}
-                    onClick={(e) => e.stopPropagation()}
-                    role="menu"
-                >
-                    <button style={expandMenuItemStyle} onClick={handleWishlist}>➕ İstek Listesi</button>
-                    <button style={expandMenuItemStyle} onClick={handleWatched}>✅ İzledim</button>
-                    <button style={expandMenuItemStyle} onClick={openListPicker}>🎞️ Film Listesi</button>
+                <div style={menuStyle} onClick={(e) => e.stopPropagation()} role="menu">
+                    <button style={expandMenuItemStyle} onClick={handleWishlist}>
+                        ➕ İstek Listesi
+                    </button>
+                    <button style={expandMenuItemStyle} onClick={handleWatched}>
+                        ✅ İzledim
+                    </button>
+                    <button style={expandMenuItemStyle} onClick={openListPicker}>
+                        🎞️ Film Listesi
+                    </button>
                 </div>
 
                 {/* Sağ üst durum ikonları */}
@@ -155,9 +173,13 @@ export default function MovieCard({
                         <div style={statusBadgeStyle} title="İzledim">
                             {/* 👁️ Eye SVG */}
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-                                <path d="M12 5C7 5 2.7 8.1 1 12c1.7 3.9 6 7 11 7s9.3-3.1 11-7c-1.7-3.9-6-7-11-7Z" fill="#fff" opacity="0.9"/>
-                                <circle cx="12" cy="12" r="4" fill="#0b0b0b"/>
-                                <circle cx="12" cy="12" r="2" fill="#fff"/>
+                                <path
+                                    d="M12 5C7 5 2.7 8.1 1 12c1.7 3.9 6 7 11 7s9.3-3.1 11-7c-1.7-3.9-6-7-11-7Z"
+                                    fill="#fff"
+                                    opacity="0.9"
+                                />
+                                <circle cx="12" cy="12" r="4" fill="#0b0b0b" />
+                                <circle cx="12" cy="12" r="2" fill="#fff" />
                             </svg>
                         </div>
                     )}
@@ -167,8 +189,8 @@ export default function MovieCard({
                     <div style={ribbonWrapStyle} title="İstek Listesinde">
                         {/* 🔖 Ribbon SVG */}
                         <svg width="24" height="36" viewBox="0 0 24 36" fill="none" aria-hidden>
-                            <path d="M0 0h24v26L12 20 0 26V0Z" fill="#dc2626"/>
-                            <rect x="0" y="0" width="24" height="3" fill="rgba(255,255,255,0.18)"/>
+                            <path d="M0 0h24v26L12 20 0 26V0Z" fill="#dc2626" />
+                            <rect x="0" y="0" width="24" height="3" fill="rgba(255,255,255,0.18)" />
                         </svg>
                     </div>
                 )}
@@ -184,8 +206,8 @@ export default function MovieCard({
             </div>
 
             {/* Başlık: kartın ALTINDA */}
-            <div style={movieCaptionStyle} title={movie.title}>
-                {movie.title}
+            <div style={movieCaptionStyle} title={title}>
+                {title}
             </div>
         </div>
     );

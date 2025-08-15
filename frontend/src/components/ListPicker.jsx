@@ -1,53 +1,40 @@
 // src/components/ListPicker.jsx
 import React, { useEffect, useState, useCallback } from "react";
 import {
-    listPickerStyle, listPickerHeaderStyle, listPickerBodyStyle,
+    // merkez modal
+    listModalOverlayStyle, listModalCardStyle,
+    // içerik
+    listPickerHeaderStyle, listPickerBodyStyle,
     listInputRowStyle, listInputStyle, listCreateBtnStyle,
-    listItemStyle, listEmptyTextStyle, listCloseBtnStyle
+    listEmptyTextStyle, listCloseBtnStyle,
+    // satır + kutucuk
+    listRowStyle, listCheckStyle, listNameStyle, listCheckIconStyle
 } from "../styles/ui";
 import {
     getUserLists, createList,
     addTmdbToList, addMovieToList,
-    getListById,              // ⬅️ yeni: liste detayını çekmek için
-    removeMovieFromList       // ⬅️ kaldırma için
+    getListById, removeMovieFromList
 } from "../api/movieLists";
 
-// --- Helpers: API'den gelen alanları tek biçime çevir ---
+// ---- yardımcılar ----
+const withTimeout = (p, ms = 12000) =>
+    Promise.race([
+        p,
+        new Promise((_, rej) => setTimeout(() => rej(new Error("Sunucu zaman aşımına uğradı.")), ms)),
+    ]);
+
 const normalizeList = (l) => ({
-    id:
-        l?.id ??
-        l?.listId ??
-        l?.listID ??
-        l?.list_id ??
-        l?.uuid ??
-        l?.pk ??
-        null,
-    name:
-        l?.name ??
-        l?.listName ??
-        l?.list_name ??
-        l?.title ??
-        "İsimsiz",
-    description:
-        l?.description ??
-        l?.listDescription ??
-        l?.list_description ??
-        "",
+    id: l?.id ?? l?.listId ?? l?.listID ?? l?.list_id ?? l?.uuid ?? l?.pk ?? null,
+    name: l?.name ?? l?.listName ?? l?.list_name ?? l?.title ?? "İsimsiz",
+    description: l?.description ?? l?.listDescription ?? l?.list_description ?? "",
     image: l?.listImage ?? l?.list_image ?? l?.image ?? null,
     rating: typeof l?.listRating === "number" ? l.listRating : (l?.rating ?? null),
     raw: l
 });
 const normalizeArray = (arr) => (Array.isArray(arr) ? arr.map(normalizeList) : []);
 
-// liste detayındaki movies alanından, bu film o listede mi ve kaldırmak için DB movieId nedir tespit et
 function pickMembership(detail, movie, fromTmdb) {
-    const items =
-        detail?.movies ??
-        detail?.movieList ??
-        detail?.items ??
-        detail?.contents ??
-        [];
-
+    const items = detail?.movies ?? detail?.movieList ?? detail?.items ?? detail?.contents ?? [];
     const tmdbTarget = movie?.tmdbId ?? movie?.tmdb_id ?? movie?.id;
     const dbTarget   = movie?.id;
 
@@ -66,40 +53,31 @@ function pickMembership(detail, movie, fromTmdb) {
 }
 
 export default function ListPicker({
-                                       open,
-                                       onClose,
-                                       movie,
-                                       userId,
-                                       fromTmdb,
-                                       autoClose = true // başarıdan sonra kapatma davranışı
+                                       open, onClose, movie, userId, fromTmdb, autoClose = false
                                    }) {
     const [lists, setLists] = useState([]);
     const [loading, setLoading] = useState(false);
     const [creating, setCreating] = useState(false);
-    const [addingId, setAddingId] = useState(null);
-    const [tempAdded, setTempAdded] = useState(null); // “✓ Eklendi”
+    const [togglingId, setTogglingId] = useState(null);
     const [error, setError] = useState("");
     const [newName, setNewName] = useState("");
 
     // { [listId]: { inList: boolean, dbMovieId?: number } }
     const [membership, setMembership] = useState({});
-    const [hoveredId, setHoveredId] = useState(null);
 
-    // listeleri getir + her liste için üyelik durumunu çıkar
     const refresh = useCallback(async () => {
         if (!userId) { setError("Kullanıcı bulunamadı (userId yok)."); return; }
         setError("");
         setLoading(true);
         try {
-            const data = await getUserLists(userId);
+            const data = await withTimeout(getUserLists(userId));
             const normalized = normalizeArray(data);
             setLists(normalized);
 
-            // her liste için detay çekip üyelik durumunu belirle
             const pairs = await Promise.all(
                 normalized.map(async (l) => {
                     try {
-                        const detail = await getListById(l.id);
+                        const detail = await withTimeout(getListById(l.id));
                         return [l.id, pickMembership(detail, movie, fromTmdb)];
                     } catch {
                         return [l.id, { inList: false }];
@@ -117,10 +95,7 @@ export default function ListPicker({
         }
     }, [userId, movie, fromTmdb]);
 
-    useEffect(() => {
-        if (!open) return;
-        refresh();
-    }, [open, refresh]);
+    useEffect(() => { if (open) refresh(); }, [open, refresh]);
 
     const doCreate = useCallback(async () => {
         const name = newName.trim();
@@ -130,11 +105,7 @@ export default function ListPicker({
         setError("");
         setCreating(true);
         try {
-            await createList({
-                userId,
-                name,
-                description: `Kullanıcı listesi: ${name}` // NOT NULL için
-            });
+            await withTimeout(createList({ userId, name, description: `Kullanıcı listesi: ${name}` }));
             setNewName("");
             await refresh();
         } catch (e) {
@@ -152,141 +123,129 @@ export default function ListPicker({
         }
     };
 
-    // Ekle / (üyeyse) kaldır
-    const handleToggle = async (l) => {
+    // ESC ile kapat
+    useEffect(() => {
+        if (!open) return;
+        const onKey = (ev) => { if (ev.key === "Escape") onClose?.(); };
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+    }, [open, onClose]);
+
+    // kutucuğa tıkla → toggle
+    const toggle = async (l) => {
+        if (togglingId) return;
         const entry = membership[l.id] || { inList: false };
-        const isIn  = entry.inList;
+        const isSelected = entry.inList;
 
-        if (addingId) return; // aynı anda iki işlem olmasın
+        setTogglingId(l.id);
+        setError("");
 
-        // Üyeyse → kaldırmadan önce sor
-        if (isIn) {
-            const ok = window.confirm(`“${l.name}” adlı listeden kaldırmak istiyor musun?`);
-            if (!ok) return;
-
-            setAddingId(l.id);
-            try {
-                // dbMovieId yoksa bir kez daha detay çekip bul
+        try {
+            if (isSelected) {
+                // seçiliyse KALDIR
                 let dbMovieId = entry.dbMovieId;
                 if (!dbMovieId) {
-                    const detail = await getListById(l.id);
+                    const detail = await withTimeout(getListById(l.id));
                     dbMovieId = pickMembership(detail, movie, fromTmdb).dbMovieId;
                 }
                 if (!dbMovieId) throw new Error("Kaldırılacak kayıt id'si bulunamadı.");
-
-                await removeMovieFromList(l.id, dbMovieId);
+                await withTimeout(removeMovieFromList(l.id, dbMovieId));
                 setMembership((m) => ({ ...m, [l.id]: { inList: false, dbMovieId: null } }));
-            } catch (e) {
-                console.error(e);
-                setError(e?.message || "Listeden çıkarılamadı.");
-            } finally {
-                setAddingId(null);
-            }
-            return;
-        }
-
-        // Üye değilse → ekle
-        setError("");
-        setAddingId(l.id);
-        try {
-            if (fromTmdb) {
-                const tmdbId = movie.tmdbId || movie.tmdb_id || movie.id;
-                await addTmdbToList(l.id, tmdbId);
             } else {
-                await addMovieToList(l.id, movie.id);
+                // seçili değilse EKLE
+                if (fromTmdb) {
+                    const tmdbId = movie.tmdbId || movie.tmdb_id || movie.id;
+                    await withTimeout(addTmdbToList(l.id, tmdbId));
+                } else {
+                    await withTimeout(addMovieToList(l.id, movie.id));
+                }
+                setMembership((m) => ({ ...m, [l.id]: { inList: true } }));
+                if (autoClose) onClose?.();
             }
-
-            setTempAdded(l.id);
-            setTimeout(() => setTempAdded(null), 1200);
-            setMembership((m) => ({ ...m, [l.id]: { inList: true } }));
-
-            if (autoClose) onClose?.();
         } catch (e) {
             console.error(e);
-            const msg = String(e?.message || "");
-            if (msg.toLowerCase().includes("already") || msg.toLowerCase().includes("exist") || msg.toLowerCase().includes("duplicate")) {
-                setError("Bu film zaten bu listede 👌");
-            } else {
-                setError(msg || "Listeye eklenemedi.");
-            }
+            setError(e?.message || "İşlem başarısız.");
         } finally {
-            setAddingId(null);
+            setTogglingId(null);
         }
     };
 
     if (!open) return null;
 
     return (
-        <div style={listPickerStyle} onClick={(e) => e.stopPropagation()}>
-            <div style={listPickerHeaderStyle}>
-                <span>🎞️ Film Listesi</span>
-                <button style={listCloseBtnStyle} onClick={onClose} aria-label="Kapat">✕</button>
-            </div>
-
-            <div style={listPickerBodyStyle}>
-                <div style={listInputRowStyle}>
-                    <input
-                        style={listInputStyle}
-                        value={newName}
-                        onChange={(e) => {
-                            setNewName(e.target.value);
-                            if (error) setError("");
-                        }}
-                        onKeyDown={onInputKeyDown}
-                        placeholder="Yeni film listesi adı..."
-                        maxLength={60}
-                    />
-                    <button
-                        style={listCreateBtnStyle}
-                        onClick={doCreate}
-                        disabled={creating || !newName.trim()}
-                        aria-busy={creating}
-                    >
-                        {creating ? "..." : "Oluştur"}
-                    </button>
+        <div style={listModalOverlayStyle} onClick={onClose}>
+            <div style={listModalCardStyle} onClick={(e) => e.stopPropagation()}>
+                <div style={listPickerHeaderStyle}>
+                    <span>🎞️ Film Listesi</span>
+                    <button style={listCloseBtnStyle} onClick={onClose} aria-label="Kapat">✕</button>
                 </div>
 
-                {error && (
-                    <div style={{ color: "#ef4444", fontSize: 13, whiteSpace: "pre-wrap" }}>
-                        {error}
+                <div style={listPickerBodyStyle}>
+                    <div style={listInputRowStyle}>
+                        <input
+                            style={listInputStyle}
+                            value={newName}
+                            onChange={(e) => { setNewName(e.target.value); if (error) setError(""); }}
+                            onKeyDown={onInputKeyDown}
+                            placeholder="Yeni film listesi adı..."
+                            maxLength={60}
+                            autoFocus
+                        />
+                        <button
+                            style={listCreateBtnStyle}
+                            onClick={doCreate}
+                            disabled={creating || !newName.trim()}
+                            aria-busy={creating}
+                        >
+                            {creating ? "..." : "Oluştur"}
+                        </button>
                     </div>
-                )}
 
-                {loading ? (
-                    <div style={listEmptyTextStyle}>Yükleniyor...</div>
-                ) : lists.length === 0 ? (
-                    <div style={listEmptyTextStyle}>Hiç listen yok. Hemen bir tane oluştur!</div>
-                ) : (
-                    lists.map((l) => {
-                        const disabled = Boolean(addingId);
-                        const entry = membership[l.id] || { inList: false };
-                        const isIn  = entry.inList;
-                        const showMinus = isIn && hoveredId === l.id;
-                        const icon = showMinus ? "−" : "+";
-                        const label =
-                            addingId === l.id ? "⏳ İşleniyor..." :
-                                tempAdded === l.id ? "✓ Eklendi" :
-                                    `${icon} ${l.name}`;
+                    {error && <div style={{ color: "#ef4444", fontSize: 13, whiteSpace: "pre-wrap" }}>{error}</div>}
 
-                        return (
-                            <button
-                                key={l.id ?? l.raw?.id ?? l.raw?.listId}
-                                style={{
-                                    ...listItemStyle,
-                                    ...(disabled && { opacity: 0.6, cursor: "not-allowed" })
-                                }}
-                                onMouseEnter={() => setHoveredId(l.id)}
-                                onMouseLeave={() => setHoveredId(null)}
-                                onClick={() => !disabled && handleToggle(l)}
-                                disabled={disabled}
-                                aria-busy={addingId === l.id}
-                                title={isIn ? "Bu listeden kaldır" : "Bu listeye ekle"}
-                            >
-                                {label}
-                            </button>
-                        );
-                    })
-                )}
+                    {loading ? (
+                        <div style={listEmptyTextStyle}>Yükleniyor...</div>
+                    ) : lists.length === 0 ? (
+                        <div style={listEmptyTextStyle}>Hiç listen yok. Hemen bir tane oluştur!</div>
+                    ) : (
+                        lists.map((l) => {
+                            const entry = membership[l.id] || { inList: false };
+                            const selected = entry.inList;
+                            const busy = togglingId === l.id;
+
+                            return (
+                                <div
+                                    key={l.id ?? l.raw?.id ?? l.raw?.listId}
+                                    style={{ ...listRowStyle, ...(busy && { opacity: 0.6, pointerEvents: "none" }) }}
+                                >
+                                    {/* Checkbox */}
+                                    <button
+                                        onClick={() => toggle(l)}
+                                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(l); } }}
+                                        aria-pressed={selected}
+                                        aria-label={selected ? "Listeden çıkar" : "Listeye ekle"}
+                                        style={listCheckStyle(selected)}
+                                    >
+                                        {selected && (
+                                            <svg style={listCheckIconStyle} viewBox="0 0 24 24" fill="none" aria-hidden>
+                                                <path
+                                                    d="M20 6L9 17l-5-5"
+                                                    stroke="#dc2626"
+                                                    strokeWidth="3.2"
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                />
+                                            </svg>
+                                        )}
+                                    </button>
+
+                                    {/* Ad */}
+                                    <div style={listNameStyle}>{l.name}</div>
+                                </div>
+                            );
+                        })
+                    )}
+                </div>
             </div>
         </div>
     );

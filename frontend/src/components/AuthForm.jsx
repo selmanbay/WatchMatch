@@ -1,5 +1,5 @@
 // src/components/AuthForm.jsx
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, Suspense } from "react";
 import {
     btnStyle,
     formInputStyle,
@@ -7,7 +7,9 @@ import {
     errorTextStyle,
     withError
 } from "../styles/ui";
-import RegistrationWizard from "./register/RegistrationWizard";
+
+// Lazy import: dosya yoksa bile login ekranı render edilir
+const RegistrationWizard = React.lazy(() => import("./register/RegistrationWizard"));
 
 export default function AuthForm({ onSuccess }) {
     const [authMode, setAuthMode] = useState("login");
@@ -17,7 +19,6 @@ export default function AuthForm({ onSuccess }) {
     const [touched, setTouched] = useState({ email: false, password: false });
     const [loginError, setLoginError] = useState("");
 
-    // Alan bazlı hatalar (input altında küçük kırmızı yazı)
     const errors = useMemo(() => {
         const e = {};
         if (touched.email) {
@@ -38,7 +39,6 @@ export default function AuthForm({ onSuccess }) {
         e.preventDefault();
         setLoginError("");
 
-        // Form boş/hatalıysa ilerleme yok, alanları işaretle
         if (!canLogin) {
             setTouched({ email: true, password: true });
             return;
@@ -50,10 +50,20 @@ export default function AuthForm({ onSuccess }) {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ email: cred.email, password: cred.password })
             });
-            if (!res.ok) throw new Error(await res.text());
+
+            if (!res.ok) {
+                let msg = "Giriş başarısız.";
+                try {
+                    const j = await res.json();
+                    msg = j.message || msg;
+                } catch {
+                    try { msg = (await res.text()) || msg; } catch {}
+                }
+                throw new Error(msg);
+            }
+
             const data = await res.json();
             onSuccess?.(data);
-            // Üstte alert yok; başarılı durumda dışarıdan yönlendirme/kapama beklenir.
         } catch (err) {
             setLoginError(err?.message || "Giriş başarısız.");
         }
@@ -62,12 +72,10 @@ export default function AuthForm({ onSuccess }) {
     const onKeyDown = (e) => {
         if (e.key === "Enter") {
             e.preventDefault();
-            // submit akışını tetikle
             if (!canLogin) {
                 setTouched({ email: true, password: true });
                 return;
             }
-            // form submitine bırak
             e.currentTarget.form?.requestSubmit?.();
         }
     };
@@ -75,10 +83,13 @@ export default function AuthForm({ onSuccess }) {
     if (authMode === "register") {
         return (
             <>
-                <RegistrationWizard
-                    onSuccess={onSuccess}
-                    onCancel={() => setAuthMode("login")}
-                />
+                <Suspense fallback={<div style={authPageStyle()}>Yükleniyor...</div>}>
+                    <RegistrationWizard
+                        onSuccess={onSuccess}
+                        onCancel={() => setAuthMode("login")}
+                    />
+                </Suspense>
+
                 <p style={{ textAlign: "center", marginTop: 12, color: "rgba(255,255,255,0.7)" }}>
                     Zaten hesabın var mı?
                     <button
@@ -99,7 +110,7 @@ export default function AuthForm({ onSuccess }) {
         );
     }
 
-    // LOGIN ekranı (arka plan: public/images/auth-bg.webp)
+    // LOGIN ekranı
     return (
         <div style={authPageStyle()}>
             <div
@@ -133,6 +144,7 @@ export default function AuthForm({ onSuccess }) {
                     {/* Email */}
                     <input
                         type="email"
+                        autoComplete="email"
                         placeholder="Email"
                         value={cred.email}
                         onChange={(e) => setCred({ ...cred, email: e.target.value })}
@@ -150,6 +162,7 @@ export default function AuthForm({ onSuccess }) {
                     {/* Şifre */}
                     <input
                         type="password"
+                        autoComplete="current-password"
                         placeholder="Şifre"
                         value={cred.password}
                         onChange={(e) => setCred({ ...cred, password: e.target.value })}
@@ -162,7 +175,6 @@ export default function AuthForm({ onSuccess }) {
                     />
                     {errors.password && <div style={errorTextStyle}>{errors.password}</div>}
 
-                    {/* Backend’ten gelen giriş hatası: küçük kırmızı metin */}
                     {loginError && (
                         <div style={{ ...errorTextStyle, marginTop: 8 }}>{loginError}</div>
                     )}
