@@ -50,6 +50,61 @@ export default function ProfilePage({
         return () => ac.abort();
     }, [userId]);
 
+    // ⚡ Kapak görseli olmayan listeler için: detayını çek → ilk filmin posteriyle kapak doldur
+    useEffect(() => {
+        if (!userId) return;
+        const targets = (listsMeta || []).filter(
+            (l) =>
+                !(l.image || l.listImage || l.cover || l.coverUrl) &&
+                ((l.movieCount ?? (l.movies?.length ?? 0)) > 0)
+        );
+        if (targets.length === 0) return;
+
+        const ac = new AbortController();
+        (async () => {
+            try {
+                const results = await Promise.all(
+                    targets.map(async (l) => {
+                        const id = l.id ?? l.listId;
+                        try {
+                            const r = await fetch(`http://localhost:8080/api/movie-lists/${id}`, {
+                                signal: ac.signal
+                            });
+                            if (!r.ok) return null;
+                            const detail = await r.json();
+                            const movies = detail?.movies || [];
+                            const cover =
+                                detail?.image ||
+                                detail?.listImage ||
+                                detail?.cover ||
+                                detail?.coverUrl ||
+                                pickPoster(movies[0]);
+                            return cover ? { id, cover } : null;
+                        } catch {
+                            return null;
+                        }
+                    })
+                );
+
+                const map = new Map(
+                    results.filter(Boolean).map((x) => [String(x.id), x.cover])
+                );
+
+                setListsMeta((prev) =>
+                    (prev || []).map((l) => {
+                        const id = l.id ?? l.listId;
+                        const cv = map.get(String(id));
+                        return cv ? { ...l, image: cv } : l;
+                    })
+                );
+            } catch (e) {
+                console.warn("Kapak tamamlama sırasında hata:", e);
+            }
+        })();
+
+        return () => ac.abort();
+    }, [userId, listsMeta]);
+
     // Albüm kartları (Wishlist/Watchlist + custom list özetleri)
     const albums = useMemo(() => {
         const sys = [
@@ -76,10 +131,10 @@ export default function ProfilePage({
         const custom = (listsMeta || []).map((l) => ({
             id: l.id ?? l.listId,
             title: l.listName || l.name || "Liste",
-            // Backend farklı alanlar dökebilir; hepsini dene, yoksa listedeki ilk filmin posterini kullan
-            image: l.image || l.listImage || l.cover || l.coverUrl || pickPoster((l.movies || [])[0]),
+            // Özetten gelirse kullan, yoksa (üstteki efekt kısa sürede dolduracak)
+            image: l.image || l.listImage || l.cover || l.coverUrl || null,
             count: l.movieCount ?? (l.movies?.length ?? 0),
-            movies: l.movies || undefined, // bazı backendlere göre özetle birlikte gelebilir
+            movies: l.movies || undefined,
             editable: true,
             subtitle: "Kullanıcı Listesi"
         }));
@@ -93,7 +148,6 @@ export default function ProfilePage({
             setSelectedAlbum(album);
             return;
         }
-        // Custom liste: detayını tıklanınca çek
         if (!album?.id) return;
         const ac = new AbortController();
         try {
@@ -107,7 +161,13 @@ export default function ProfilePage({
             const movies = detail?.movies || [];
             setSelectedAlbum({
                 ...album,
-                image: album.image || pickPoster(movies[0]),
+                image:
+                    album.image ||
+                    detail?.image ||
+                    detail?.listImage ||
+                    detail?.cover ||
+                    detail?.coverUrl ||
+                    pickPoster(movies[0]),
                 movies
             });
         } catch (e) {
@@ -116,7 +176,6 @@ export default function ProfilePage({
         } finally {
             setLoadingAlbum(false);
         }
-        // NOT: event handler içinde cleanup return etmiyoruz
     };
 
     const changeCover = async (album) => {
