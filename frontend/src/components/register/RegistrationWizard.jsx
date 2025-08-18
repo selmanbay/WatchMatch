@@ -5,7 +5,7 @@ import StepAccount from "./StepAccount";
 import StepProfile from "./StepProfile";
 import StepPrefs from "./StepPrefs";
 
-export default function RegistrationWizard({ onSuccess, onCancel }) {
+export default function RegistrationWizard({ onSuccess, onCancel, onGoLogin }) {
     // ===== Form State =====
     const [credentials, setCredentials] = useState({
         username: "",
@@ -173,6 +173,29 @@ export default function RegistrationWizard({ onSuccess, onCancel }) {
         }
     };
 
+    // ===== Local styles: switch row (kırmızı-beyaz tema) =====
+    const switchRowStyle = {
+        marginTop: 12,
+        paddingTop: 12,
+        borderTop: "1px solid rgba(255,255,255,0.08)",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        gap: 8,
+        fontSize: 14,
+        color: "rgba(255,255,255,0.85)"
+    };
+
+    const switchLinkStyle = {
+        background: "transparent",
+        border: "none",
+        padding: 0,
+        color: "#ef4444", // kırmızı
+        fontWeight: 700,
+        cursor: "pointer",
+        textDecoration: "none"
+    };
+
     // ===== Render =====
     return (
         <div style={authPageStyle()}>
@@ -246,6 +269,22 @@ export default function RegistrationWizard({ onSuccess, onCancel }) {
                         submitError={submitError}  // küçük kırmızı metin olarak gösterilecek
                     />
                 )}
+
+                {/* 🔴 Modal İÇİ alt satır: "Zaten hesabın var mı?" */}
+                <div style={switchRowStyle}>
+                    <span>Zaten hesabın var mı?</span>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            if (typeof onGoLogin === "function") onGoLogin();
+                            else console.warn("RegistrationWizard: onGoLogin prop'u sağlanmadı.");
+                        }}
+                        style={switchLinkStyle}
+                        aria-label="Giriş sayfasına geç"
+                    >
+                        Giriş Yap
+                    </button>
+                </div>
             </div>
         </div>
     );

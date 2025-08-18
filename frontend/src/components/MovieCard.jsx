@@ -151,7 +151,7 @@ export default function MovieCard({
                     }}
                     aria-haspopup="menu"
                 >
-                    + ADD TO LIST
+                    + Ekle
                 </button>
 
                 {/* Yukarı doğru açılan menü */}

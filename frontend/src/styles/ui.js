@@ -252,6 +252,29 @@ export const authPageStyle = (bg = "/images/auth-bg.webp") => ({
     overflowX: "hidden"
 });
 
+/* 🔴 Auth switch satırı (modalın İÇİNDE kullanılacak) */
+export const authSwitchRowStyle = {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTop: "1px solid rgba(255,255,255,0.08)",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 8,
+    fontSize: 14,
+    color: "rgba(255,255,255,0.85)"
+};
+
+export const authSwitchLinkStyle = {
+    background: "transparent",
+    border: "none",
+    padding: 0,
+    color: "#ef4444",
+    fontWeight: 700,
+    cursor: "pointer",
+    textDecoration: "none"
+};
+
 /* ===== Form errors ===== */
 export const errorTextStyle = {
     color: "#ef4444",

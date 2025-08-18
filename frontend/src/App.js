@@ -5,10 +5,13 @@ import AuthForm from "./components/AuthForm";
 import MovieGrid from "./components/MovieGrid";
 import ProfilePage from "./pages/ProfilePage";
 import {
-    mainContentStyle, containerStyle, sectionHeaderStyle, sectionTitleStyle,
-    formStyle, formRowStyle, formInputStyle, btnStyle
+    mainContentStyle,
+    containerStyle,
+    sectionHeaderStyle,
+    sectionTitleStyle
 } from "./styles/ui";
 
+/* --- Yardımcılar --- */
 function thumbFrom(item) {
     const p =
         item?.posterUrl ||
@@ -22,15 +25,102 @@ function thumbFrom(item) {
     return p;
 }
 
+// TMDB controller farklı şekillerde cevap verebilir: [] | {results:[]} | {content:[]} | {items:[]}
+function extractMovies(payload) {
+    if (!payload) return [];
+    if (Array.isArray(payload)) return payload;
+    if (Array.isArray(payload.results)) return payload.results;
+    if (Array.isArray(payload.content)) return payload.content;
+    if (Array.isArray(payload.items)) return payload.items;
+    if (Array.isArray(payload.movies)) return payload.movies;
+    if (Array.isArray(payload.data)) return payload.data;
+    return [];
+}
+
+/* - Anasayfada göstereceğimiz kategoriler (TMDB genre IDs) - */
+const GENRES = [
+    { id: 28, name: "Aksiyon" },
+    { id: 12, name: "Macera" },
+    { id: 14, name: "Fantastik" },
+    { id: 27, name: "Korku" },
+    { id: 35, name: "Komedi" },
+    { id: 18, name: "Dram" },
+    { id: 878, name: "Bilim Kurgu" },
+    { id: 10749, name: "Romantik" }
+];
+
+// Bir film objesi şunu içeriyor mu? (genre id)
+function hasGenre(row, gid) {
+    if (!row) return false;
+    const ids =
+        row.genre_ids ||
+        row.genreIds ||
+        (Array.isArray(row.genres)
+            ? row.genres.map((g) => (typeof g === "number" ? g : g?.id)).filter(Boolean)
+            : []);
+    return Array.isArray(ids) && ids.includes(gid);
+}
+
+// Dönüşen filmlerde tekrarları temizle (id varsa id’ye göre)
+function uniqById(list) {
+    const seen = new Set();
+    const out = [];
+    for (const item of list) {
+        const key = item.id ?? item.tmdbId ?? `${item.title}-${item.release_date}`;
+        if (!seen.has(key)) {
+            seen.add(key);
+            out.push(item);
+        }
+    }
+    return out;
+}
+
+// Backend’te farklı rotalar olabilir; sırayla dene, ilk dolu cevabı kullan.
+async function fetchGenreWithFallbacks(genreId, page, signal) {
+    const candidates = [
+        // en muhtemeller
+        `http://localhost:8080/api/tmdb/genre/${genreId}?page=${page}`,
+        `http://localhost:8080/api/tmdb/genre/${genreId}/popular?page=${page}`,
+        // discover varyasyonları
+        `http://localhost:8080/api/tmdb/discover?with_genres=${genreId}&page=${page}`,
+        `http://localhost:8080/api/tmdb/discover/${genreId}?page=${page}`,
+        // diğer olası adlandırmalar
+        `http://localhost:8080/api/tmdb/genre/${genreId}/trending?page=${page}`,
+        `http://localhost:8080/api/tmdb/genre/${genreId}/top-rated?page=${page}`,
+        `http://localhost:8080/api/tmdb/genre/${genreId}/movies?page=${page}`,
+        // son çare: popular’ı çek ve client’ta filtrele
+        `http://localhost:8080/api/tmdb/popular?page=${page}`
+    ];
+
+    for (let i = 0; i < candidates.length; i++) {
+        try {
+            const res = await fetch(candidates[i], { signal });
+            if (!res.ok) continue;
+            const data = await res.json();
+            let arr = extractMovies(data);
+
+            // Son fallback ise client-side filtre uygula
+            if (i === candidates.length - 1) {
+                arr = arr.filter((m) => hasGenre(m, genreId));
+            }
+
+            if (Array.isArray(arr) && arr.length > 0) {
+                return uniqById(arr);
+            }
+        } catch (e) {
+            if (signal?.aborted) throw e;
+            // bir sonrakini dene
+        }
+    }
+    return [];
+}
+
 function App() {
     const [user, setUser] = useState(null);
     const [view, setView] = useState("home"); // "home" | "profile"
 
     const [movies, setMovies] = useState([]);
     const [loading, setLoading] = useState(false);
-    const [newMovie, setNewMovie] = useState({
-        title: "", genre: "", releaseYear: "", rating: "", description: "", posterUrl: ""
-    });
 
     const [wishlist, setWishlist] = useState([]);
     const [watchedlist, setWatchedlist] = useState([]);
@@ -47,6 +137,11 @@ function App() {
     // --- Öneri dropdown state ---
     const [suggestions, setSuggestions] = useState([]); // [{id,title,year,poster,source,raw}]
     const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+
+    // --- Kategori satırları ---
+    const [genreSections, setGenreSections] = useState(
+        GENRES.map((g) => ({ ...g, items: [], loading: false, error: null }))
+    );
 
     // Kalıcı oturum
     useEffect(() => {
@@ -74,14 +169,72 @@ function App() {
         setLoading(true);
         fetch("http://localhost:8080/api/movies")
             .then((res) => res.json())
-            .then((data) => { setMovies(data); setLoading(false); })
-            .catch(() => { setLoading(false); alert("❌ Filmler alınamadı!"); });
+            .then((data) => {
+                setMovies(data);
+                setLoading(false);
+            })
+            .catch(() => {
+                setLoading(false);
+                console.warn("❌ Filmler alınamadı!");
+            });
 
         setTmdbLoading(true);
         fetch("http://localhost:8080/api/tmdb/popular")
             .then((res) => res.json())
-            .then((data) => { setTmdbMovies(data.results || []); setTmdbLoading(false); })
-            .catch(() => { setTmdbLoading(false); alert("❌ TMDB filmleri alınamadı!"); });
+            .then((data) => {
+                const arr = extractMovies(data);
+                setTmdbMovies(arr);
+                setTmdbLoading(false);
+            })
+            .catch(() => {
+                setTmdbLoading(false);
+                console.warn("❌ TMDB popüler alınamadı!");
+            });
+    }, [user]);
+
+    // Kategori satırlarını çek (her kategoriye farklı sayfa ile, fallback’li)
+    useEffect(() => {
+        if (user === null) return;
+
+        const controller = new AbortController();
+
+        const loadGenre = async (genre, idx) => {
+            const page = 1 + Math.floor(Math.random() * 6);
+
+            setGenreSections((prev) =>
+                prev.map((s, i) => (i === idx ? { ...s, loading: true, error: null } : s))
+            );
+
+            try {
+                const items = await fetchGenreWithFallbacks(genre.id, page, controller.signal);
+                setGenreSections((prev) =>
+                    prev.map((s, i) =>
+                        i === idx
+                            ? { ...s, items: items.slice(0, 20), loading: false, error: null }
+                            : s
+                    )
+                );
+            } catch (e) {
+                if (!controller.signal.aborted) {
+                    setGenreSections((prev) =>
+                        prev.map((s, i) =>
+                            i === idx
+                                ? {
+                                    ...s,
+                                    items: [],
+                                    loading: false,
+                                    error: "Bu kategoride içerik bulunamadı."
+                                }
+                                : s
+                        )
+                    );
+                }
+            }
+        };
+
+        GENRES.forEach((g, idx) => loadGenre(g, idx));
+
+        return () => controller.abort();
     }, [user]);
 
     // Öneriler: yazdıkça hem local hem TMDB (debounce + abort)
@@ -122,14 +275,16 @@ function App() {
                 );
                 if (!res.ok) throw new Error(await res.text());
                 const data = await res.json();
-                const tmdb = (data?.results || []).slice(0, 7).map((r) => ({
-                    id: r.id,
-                    title: r.title || r.name || "Film",
-                    year: (r.release_date || r.first_air_date || "").slice(0, 4),
-                    poster: thumbFrom(r),
-                    source: "tmdb",
-                    raw: r
-                }));
+                const tmdb = extractMovies(data)
+                    .slice(0, 7)
+                    .map((r) => ({
+                        id: r.id,
+                        title: r.title || r.name || "Film",
+                        year: (r.release_date || r.first_air_date || "").slice(0, 4),
+                        poster: thumbFrom(r),
+                        source: "tmdb",
+                        raw: r
+                    }));
                 setSuggestions([...local, ...tmdb].slice(0, 10));
             } catch {
                 setSuggestions(local);
@@ -138,7 +293,10 @@ function App() {
             }
         }, 300);
 
-        return () => { ac.abort(); clearTimeout(t); };
+        return () => {
+            ac.abort();
+            clearTimeout(t);
+        };
     }, [searchQuery, movies]);
 
     // Aramayı çalıştır
@@ -152,7 +310,7 @@ function App() {
                 `http://localhost:8080/api/tmdb/search?query=${encodeURIComponent(query)}`
             );
             const data = await res.json();
-            setSearchResults(data.results || []);
+            setSearchResults(extractMovies(data));
         } catch {
             alert("❌ Arama başarısız oldu!");
         } finally {
@@ -168,33 +326,20 @@ function App() {
         await runSearch(sugg.title || "");
     };
 
-    // Film ekleme
-    const handleAddMovie = (e) => {
-        e.preventDefault();
-        fetch("http://localhost:8080/api/movies", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(newMovie)
-        })
-            .then((res) => res.json())
-            .then((data) => {
-                setMovies([...movies, data]);
-                setNewMovie({ title: "", genre: "", releaseYear: "", rating: "", description: "", posterUrl: "" });
-            })
-            .catch(() => alert("❌ Film eklenemedi!"));
-    };
-
     // Listeler (UI)
     const addToWishlist = (movie) => {
         if (!wishlist.some((m) => m.id === movie.id)) setWishlist([...wishlist, movie]);
     };
     const addToWatchedlist = (movie) => {
-        if (!watchedlist.some((m) => m.id === movie.id)) setWatchedlist([...watchedlist, movie]);
+        if (!watchedlist.some((m) => m.id === movie.id))
+            setWatchedlist([...watchedlist, movie]);
     };
 
     // Çıkış
     const handleLogout = () => {
-        try { localStorage.removeItem("wm_user"); } catch {}
+        try {
+            localStorage.removeItem("wm_user");
+        } catch {}
         setUser(null);
         setView("home");
         setIsSearching(false);
@@ -207,7 +352,9 @@ function App() {
         return (
             <AuthForm
                 onSuccess={(u) => {
-                    try { localStorage.setItem("wm_user", JSON.stringify(u)); } catch {}
+                    try {
+                        localStorage.setItem("wm_user", JSON.stringify(u));
+                    } catch {}
                     setUser(u);
                     setView("home");
                 }}
@@ -226,7 +373,12 @@ function App() {
                     onSearch={handleSearch}
                     onLogout={handleLogout}
                     onProfile={() => setView("profile")}
-                    onHome={() => { setIsSearching(false); setSearchResults([]); setSearchQuery(""); setView("home"); }}
+                    onHome={() => {
+                        setIsSearching(false);
+                        setSearchResults([]);
+                        setSearchQuery("");
+                        setView("home");
+                    }}
                     suggestions={suggestions}
                     suggestionsLoading={suggestionsLoading}
                     onPickSuggestion={handlePickSuggestion}
@@ -254,7 +406,12 @@ function App() {
                 onSearch={handleSearch}
                 onLogout={handleLogout}
                 onProfile={() => setView("profile")}
-                onHome={() => { setIsSearching(false); setSearchResults([]); setSearchQuery(""); setView("home"); }}
+                onHome={() => {
+                    setIsSearching(false);
+                    setSearchResults([]);
+                    setSearchQuery("");
+                    setView("home");
+                }}
                 suggestions={suggestions}
                 suggestionsLoading={suggestionsLoading}
                 onPickSuggestion={handlePickSuggestion}
@@ -269,7 +426,14 @@ function App() {
                             {searchQuery && <div style={{ opacity: 0.8 }}>“{searchQuery}”</div>}
                         </div>
                         {searchLoading ? (
-                            <p style={{ textAlign: "center", padding: "60px 20px", color: "rgba(255,255,255,0.6)", fontSize: "1.1rem" }}>
+                            <p
+                                style={{
+                                    textAlign: "center",
+                                    padding: "60px 20px",
+                                    color: "rgba(255,255,255,0.6)",
+                                    fontSize: "1.1rem"
+                                }}
+                            >
                                 ⏳ Aranıyor...
                             </p>
                         ) : (
@@ -318,7 +482,7 @@ function App() {
                                     style={{
                                         fontSize: "1.2rem",
                                         color: "rgba(255, 255, 255, 0.8)",
-                                        marginBottom: "30px",
+                                        marginBottom: "30px)",
                                         lineHeight: "1.6"
                                     }}
                                 >
@@ -333,7 +497,14 @@ function App() {
                                 <h2 style={sectionTitleStyle}>🌍 TMDB Popüler Filmler</h2>
                             </div>
                             {tmdbLoading ? (
-                                <p style={{ textAlign: "center", padding: "60px 20px", color: "rgba(255, 255, 255, 0.6)", fontSize: "1.1rem" }}>
+                                <p
+                                    style={{
+                                        textAlign: "center",
+                                        padding: "60px 20px",
+                                        color: "rgba(255, 255, 255, 0.6)",
+                                        fontSize: "1.1rem"
+                                    }}
+                                >
                                     ⏳ Yükleniyor...
                                 </p>
                             ) : (
@@ -347,13 +518,59 @@ function App() {
                             )}
                         </section>
 
-                        {/* DB Filmleri */}
+                        {/* KATEGORİ SATIRLARI */}
+                        {genreSections.map((sec) => (
+                            <section key={sec.id}>
+                                <div style={sectionHeaderStyle}>
+                                    <h2 style={sectionTitleStyle}>{sec.name}</h2>
+                                </div>
+                                {sec.loading ? (
+                                    <p
+                                        style={{
+                                            textAlign: "center",
+                                            padding: "40px 20px",
+                                            color: "rgba(255,255,255,0.6)"
+                                        }}
+                                    >
+                                        ⏳ Yükleniyor...
+                                    </p>
+                                ) : sec.error ? (
+                                    <p
+                                        style={{
+                                            textAlign: "center",
+                                            padding: "20px",
+                                            color: "rgba(255,255,255,0.7)"
+                                        }}
+                                    >
+                                        {sec.error}
+                                    </p>
+                                ) : (
+                                    <MovieGrid
+                                        items={sec.items}
+                                        fromTmdb
+                                        onAddWishlist={addToWishlist}
+                                        onAddWatched={addToWatchedlist}
+                                        userId={userId}
+                                        emptyText="Bu kategoride film bulunamadı"
+                                    />
+                                )}
+                            </section>
+                        ))}
+
+                        {/* Veritabanındaki filmler (istersen bunu da kaldırabiliriz) */}
                         <section>
                             <div style={sectionHeaderStyle}>
                                 <h2 style={sectionTitleStyle}>🎥 Film Listesi</h2>
                             </div>
                             {loading ? (
-                                <p style={{ textAlign: "center", padding: "60px 20px", color: "rgba(255,255,255,0.6)", fontSize: "1.1rem" }}>
+                                <p
+                                    style={{
+                                        textAlign: "center",
+                                        padding: "60px 20px",
+                                        color: "rgba(255,255,255,0.6)",
+                                        fontSize: "1.1rem"
+                                    }}
+                                >
                                     ⏳ Yükleniyor...
                                 </p>
                             ) : (
@@ -393,65 +610,6 @@ function App() {
                                 onAddWatched={() => {}}
                                 userId={userId}
                             />
-                        </section>
-
-                        {/* Film Ekleme (debug) */}
-                        <section style={formStyle}>
-                            <h2 style={sectionTitleStyle}>➕ Yeni Film Ekle</h2>
-                            <div>
-                                <div style={formRowStyle}>
-                                    <input
-                                        type="text"
-                                        placeholder="Başlık"
-                                        value={newMovie.title}
-                                        onChange={(e) => setNewMovie({ ...newMovie, title: e.target.value })}
-                                        style={formInputStyle}
-                                    />
-                                    <input
-                                        type="text"
-                                        placeholder="Tür"
-                                        value={newMovie.genre}
-                                        onChange={(e) => setNewMovie({ ...newMovie, genre: e.target.value })}
-                                        style={formInputStyle}
-                                    />
-                                </div>
-                                <div style={formRowStyle}>
-                                    <input
-                                        type="number"
-                                        placeholder="Yıl"
-                                        value={newMovie.releaseYear}
-                                        onChange={(e) => setNewMovie({ ...newMovie, releaseYear: e.target.value })}
-                                        style={formInputStyle}
-                                    />
-                                    <input
-                                        type="number"
-                                        step="0.1"
-                                        placeholder="Puan"
-                                        value={newMovie.rating}
-                                        onChange={(e) => setNewMovie({ ...newMovie, rating: e.target.value })}
-                                        style={formInputStyle}
-                                    />
-                                </div>
-                                <div style={{ ...formRowStyle, gridTemplateColumns: "1fr" }}>
-                                    <input
-                                        type="text"
-                                        placeholder="Poster URL"
-                                        value={newMovie.posterUrl}
-                                        onChange={(e) => setNewMovie({ ...newMovie, posterUrl: e.target.value })}
-                                        style={formInputStyle}
-                                    />
-                                </div>
-                                <div style={{ ...formRowStyle, gridTemplateColumns: "1fr" }}>
-                  <textarea
-                      placeholder="Açıklama"
-                      value={newMovie.description}
-                      onChange={(e) => setNewMovie({ ...newMovie, description: e.target.value })}
-                      rows="3"
-                      style={{ ...formInputStyle, resize: "vertical" }}
-                  />
-                                </div>
-                                <button onClick={handleAddMovie} style={btnStyle}>Ekle</button>
-                            </div>
                         </section>
                     </div>
                 )}

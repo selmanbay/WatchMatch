@@ -11,7 +11,7 @@ import {
 // Lazy import: dosya yoksa bile login ekranı render edilir
 const RegistrationWizard = React.lazy(() => import("./register/RegistrationWizard"));
 
-export default function AuthForm({ onSuccess }) {
+export default function AuthForm({ onSuccess, onForgotPassword }) {
     const [authMode, setAuthMode] = useState("login");
 
     // ==== LOGIN state ====
@@ -80,33 +80,20 @@ export default function AuthForm({ onSuccess }) {
         }
     };
 
+    const handleForgot = () => {
+        if (typeof onForgotPassword === "function") onForgotPassword();
+        else window.location.href = "/forgot-password";
+    };
+
     if (authMode === "register") {
         return (
-            <>
-                <Suspense fallback={<div style={authPageStyle()}>Yükleniyor...</div>}>
-                    <RegistrationWizard
-                        onSuccess={onSuccess}
-                        onCancel={() => setAuthMode("login")}
-                    />
-                </Suspense>
-
-                <p style={{ textAlign: "center", marginTop: 12, color: "rgba(255,255,255,0.7)" }}>
-                    Zaten hesabın var mı?
-                    <button
-                        onClick={() => setAuthMode("login")}
-                        style={{
-                            marginLeft: 6,
-                            color: "#dc2626",
-                            background: "none",
-                            border: "none",
-                            cursor: "pointer",
-                            textDecoration: "underline"
-                        }}
-                    >
-                        Giriş Yap
-                    </button>
-                </p>
-            </>
+            <Suspense fallback={<div style={authPageStyle()}>Yükleniyor...</div>}>
+                <RegistrationWizard
+                    onSuccess={onSuccess}
+                    onCancel={() => setAuthMode("login")}
+                    onGoLogin={() => setAuthMode("login")}
+                />
+            </Suspense>
         );
     }
 
@@ -193,6 +180,7 @@ export default function AuthForm({ onSuccess }) {
                     </button>
                 </form>
 
+                {/* Alt bölümler */}
                 <p style={{ textAlign: "center", marginTop: 20, color: "rgba(255,255,255,0.7)" }}>
                     Hesabın yok mu?
                     <button
@@ -207,6 +195,25 @@ export default function AuthForm({ onSuccess }) {
                         }}
                     >
                         Kayıt Ol
+                    </button>
+                </p>
+
+                {/* 🔴 Yeni: Şifremi unuttum */}
+                <p style={{ textAlign: "center", marginTop: 8, color: "rgba(255,255,255,0.7)" }}>
+                    Şifreni mi unuttun?
+                    <button
+                        onClick={handleForgot}
+                        style={{
+                            marginLeft: 6,
+                            color: "#dc2626",
+                            background: "none",
+                            border: "none",
+                            cursor: "pointer",
+                            textDecoration: "underline",
+                            fontWeight: 600
+                        }}
+                    >
+                        Şifremi Unuttum
                     </button>
                 </p>
             </div>
