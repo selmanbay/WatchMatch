@@ -1,4 +1,3 @@
-// src/components/MovieGrid.jsx
 import React, { useState, useMemo } from "react";
 import { movieGridStyle } from "../styles/ui";
 import MovieCard from "./MovieCard";
@@ -12,12 +11,17 @@ export default function MovieGrid({
                                       onAddWatched,
                                       onRemoveWishlist,   // opsiyonel
                                       onRemoveWatched,    // opsiyonel
-                                      userId              // ⬅️ kullanıcı id (Film Listesi için gerekli)
+                                      userId,             // ⬅️ kullanıcı id (Film Listesi için gerekli)
+                                      onMovieClick        // ⬅️ NEW: Movie click handler for hero background
                                   }) {
     const [open, setOpen] = useState(false);
     const [selected, setSelected] = useState(null);
 
     const handleOpenDetail = (movie) => {
+        // Hero background güncellemesi
+        onMovieClick?.(movie);
+
+        // Modal state
         setSelected(movie);
         setOpen(true);
     };
@@ -65,20 +69,23 @@ export default function MovieGrid({
                         onAddWatched={onAddWatched}
                         onRemoveWishlist={onRemoveWishlist}
                         onRemoveWatched={onRemoveWatched}
-                        onOpenDetail={handleOpenDetail} // karta tıkla → detay aç
+                        onOpenDetail={handleOpenDetail} // karta tıkla → detay aç + hero background güncelle
                         userId={userId}                 // ⬅️ Film Listesi paneli için gerekli
                     />
                 ))}
             </div>
 
-            <MovieDetailModal
-                open={open}
-                onClose={() => setOpen(false)}
-                movie={selected}
-                fromTmdb={fromTmdb}
-                onAddWishlist={onAddWishlist}
-                onAddWatched={onAddWatched}
-            />
+            {/* ❗ Modal'ı sadece açıkken mount et */}
+            {open && (
+                <MovieDetailModal
+                    open
+                    onClose={() => setOpen(false)}
+                    movie={selected}
+                    fromTmdb={fromTmdb}
+                    onAddWishlist={onAddWishlist}
+                    onAddWatched={onAddWatched}
+                />
+            )}
         </>
     );
 }
