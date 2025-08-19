@@ -5,8 +5,7 @@ import {
     movieCardStyle,       // posterin bulunduğu asıl kart
     moviePosterStyle,
     addToListHoverBtnStyle,
-    expandMenuStyle,
-    expandMenuItemStyle,
+    expandMenuItemStyle,  // kırmızı gradient buton
     statusWrapStyle,
     statusBadgeStyle,
     ribbonWrapStyle,
@@ -62,11 +61,32 @@ export default function MovieCard({
         pointerEvents: isHovered ? "auto" : "none"
     };
 
-    const menuStyle = {
-        ...expandMenuStyle,
+    // Tüm kartı kaplayan overlay
+    const overlayStyle = {
+        position: "absolute",
+        inset: 0,
+        background: "rgba(12,12,12,0.82)",
+        backdropFilter: "blur(2px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 6,
         opacity: showMenu ? 1 : 0,
-        transform: `translateX(-50%) translateY(${showMenu ? "-10px" : "0"})`,
-        pointerEvents: showMenu ? "auto" : "none"
+        pointerEvents: showMenu ? "auto" : "none",
+        transition: "opacity .18s ease"
+    };
+
+    const overlayInnerStyle = {
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
+        width: "80%",
+        maxWidth: 280
+    };
+
+    // Hover parlaklığı
+    const brighten = (el, on) => {
+        if (el) el.style.filter = on ? "brightness(1.06)" : "none";
     };
 
     // —————— Tek-durum (mutually exclusive) ——————
@@ -101,7 +121,7 @@ export default function MovieCard({
     const openListPicker = (e) => {
         e.stopPropagation();
         setShowListPicker((v) => !v); // aynı butona tekrar basınca kapansın
-        setShowMenu(true);            // menü açık kalsın
+        setShowMenu(true);            // overlay açık kalsın
     };
     // ————————————————————————————————
 
@@ -145,7 +165,7 @@ export default function MovieCard({
                         e.stopPropagation();
                         setShowMenu((v) => {
                             const next = !v;
-                            if (!next) setShowListPicker(false); // menü kapanıyorsa paneli de kapat
+                            if (!next) setShowListPicker(false);
                             return next;
                         });
                     }}
@@ -154,17 +174,47 @@ export default function MovieCard({
                     + Ekle
                 </button>
 
-                {/* Yukarı doğru açılan menü */}
-                <div style={menuStyle} onClick={(e) => e.stopPropagation()} role="menu">
-                    <button style={expandMenuItemStyle} onClick={handleWishlist}>
-                        ➕ İstek Listesi
-                    </button>
-                    <button style={expandMenuItemStyle} onClick={handleWatched}>
-                        ✅ İzledim
-                    </button>
-                    <button style={expandMenuItemStyle} onClick={openListPicker}>
-                        🎞️ Film Listesi
-                    </button>
+                {/* 🔴 TÜM KARTI KAPLAYAN OVERLAY MENÜ */}
+                <div
+                    style={overlayStyle}
+                    onClick={() => {
+                        setShowMenu(false);
+                        setShowListPicker(false);
+                    }}
+                    role="menu"
+                    aria-label="Ekle menüsü"
+                >
+                    <div
+                        style={overlayInnerStyle}
+                        onClick={(e) => e.stopPropagation()} // içeriğe tıklayınca kapanmasın
+                    >
+                        <button
+                            style={{ ...expandMenuItemStyle, width: "100%" }}
+                            onMouseEnter={(e) => brighten(e.currentTarget, true)}
+                            onMouseLeave={(e) => brighten(e.currentTarget, false)}
+                            onClick={handleWishlist}
+                        >
+                            + İstek Listesi
+                        </button>
+
+                        <button
+                            style={{ ...expandMenuItemStyle, width: "100%" }}
+                            onMouseEnter={(e) => brighten(e.currentTarget, true)}
+                            onMouseLeave={(e) => brighten(e.currentTarget, false)}
+                            onClick={handleWatched}
+                        >
+                            + İzledim
+                        </button>
+
+                        <button
+                            style={{ ...expandMenuItemStyle, width: "100%" }}
+                            onMouseEnter={(e) => brighten(e.currentTarget, true)}
+                            onMouseLeave={(e) => brighten(e.currentTarget, false)}
+                            onClick={openListPicker}
+                        >
+                            + Film Listesi
+                        </button>
+                    </div>
                 </div>
 
                 {/* Sağ üst durum ikonları */}

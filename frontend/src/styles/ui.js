@@ -318,6 +318,7 @@ export const addToListHoverBtnStyle = {
     zIndex: 5
 };
 
+/* 🔴 Ekle menüsü: koyu panel + kırmızı butonlar */
 export const expandMenuStyle = {
     position: "absolute",
     bottom: 64,
@@ -327,17 +328,41 @@ export const expandMenuStyle = {
     flexDirection: "column",
     gap: 8,
     zIndex: 6,
-    transition: "opacity .2s ease, transform .2s ease"
+    transition: "opacity .2s ease, transform .2s ease",
+    padding: 10,
+    borderRadius: 14,
+    background: "rgba(12,12,12,0.96)",             // koyu panel
+    border: "1px solid rgba(255,255,255,0.12)",
+    boxShadow: "0 20px 50px rgba(0,0,0,0.6)"
 };
 
+// (İsteğe bağlı) küçük ok – panelin altına ekleyebilirsin
+export const expandMenuArrowStyle = {
+    position: "absolute",
+    bottom: -6,
+    left: "50%",
+    transform: "translateX(-50%) rotate(45deg)",
+    width: 12,
+    height: 12,
+    background: "rgba(12,12,12,0.96)",
+    borderRight: "1px solid rgba(255,255,255,0.12)",
+    borderBottom: "1px solid rgba(255,255,255,0.12)"
+};
+
+// Kırmızı gradient seçenekler (mevcut import adını bozmamak için güncelledik)
 export const expandMenuItemStyle = {
-    background: "#0b0b0b",
+    background: "linear-gradient(45deg, #dc2626, #991b1b)", // kırmızı-bordo
     color: "#ffffff",
     border: "1px solid rgba(255,255,255,0.12)",
-    padding: "8px 12px",
+    padding: "10px 14px",
     borderRadius: "10px",
-    fontSize: "13px",
-    cursor: "pointer"
+    fontSize: "14px",
+    fontWeight: 700,
+    textAlign: "center",
+    cursor: "pointer",
+    userSelect: "none",
+    boxShadow: "0 6px 20px rgba(220,38,38,0.35)",
+    transition: "transform .12s ease, filter .12s ease"
 };
 
 /* ===== Top-right status on card ===== */
