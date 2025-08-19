@@ -1,0 +1,422 @@
+
+// src/App.js
+import React, { useEffect, useState } from "react";
+import Header from "./components/Header";
+import AuthForm from "./components/AuthForm";
+import MovieGrid from "./components/MovieGrid";
+import ProfilePage from "./pages/ProfilePage";
+import {
+    mainContentStyle, containerStyle, sectionHeaderStyle, sectionTitleStyle,
+    formStyle, formRowStyle, formInputStyle, btnStyle
+} from "./styles/ui";
+
+function App() {
+    const [user, setUser] = useState(null);
+    const [view, setView] = useState("home"); // "home" | "profile"
+
+    const [movies, setMovies] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [newMovie, setNewMovie] = useState({
+        title: "", genre: "", releaseYear: "", rating: "", description: "", posterUrl: ""
+    });
+
+    const [wishlist, setWishlist] = useState([]);
+    const [watchedlist, setWatchedlist] = useState([]);
+
+    const [tmdbMovies, setTmdbMovies] = useState([]);
+    const [tmdbLoading, setTmdbLoading] = useState(false);
+
+    const [searchQuery, setSearchQuery] = useState("");
+    const [searchResults, setSearchResults] = useState([]);
+
+    // Kullanıcı id (id veya userId)
+    const userId = user?.id ?? user?.userId;
+
+    // Movies + TMDB (kullanıcı gelince)
+    useEffect(() => {
+        if (user === null) return;
+
+        setLoading(true);
+        fetch("http://localhost:8080/api/movies")
+            .then((res) => res.json())
+            .then((data) => { setMovies(data); setLoading(false); })
+            .catch(() => { setLoading(false); alert("❌ Filmler alınamadı!"); });
+
+        setTmdbLoading(true);
+        fetch("http://localhost:8080/api/tmdb/popular")
+            .then((res) => res.json())
+            .then((data) => { setTmdbMovies(data.results || []); setTmdbLoading(false); })
+            .catch(() => { setTmdbLoading(false); alert("❌ TMDB filmleri alınamadı!"); });
+    }, [user]);
+
+    // Arama
+    const handleSearch = () => {
+        if (searchQuery.trim() === "") return;
+        fetch(`http://localhost:8080/api/tmdb/search?query=${encodeURIComponent(searchQuery)}`)
+            .then((res) => res.json())
+            .then((data) => setSearchResults(data.results || []))
+            .catch(() => alert("❌ Arama başarısız oldu!"));
+    };
+
+    // Film ekleme
+    const handleAddMovie = (e) => {
+        e.preventDefault();
+        fetch("http://localhost:8080/api/movies", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(newMovie)
+        })
+            .then((res) => res.json())
+            .then((data) => {
+                setMovies([...movies, data]);
+                setNewMovie({ title: "", genre: "", releaseYear: "", rating: "", description: "", posterUrl: "" });
+            })
+            .catch(() => alert("❌ Film eklenemedi!"));
+    };
+
+    // Listeler (UI)
+    const addToWishlist = (movie) => {
+        if (!wishlist.some((m) => m.id === movie.id)) setWishlist([...wishlist, movie]);
+    };
+    const addToWatchedlist = (movie) => {
+        if (!watchedlist.some((m) => m.id === movie.id)) setWatchedlist([...watchedlist, movie]);
+    };
+
+    // Login/Register
+    if (user === null) {
+        return <AuthForm onSuccess={(u) => { setUser(u); setView("home"); }} />;
+    }
+
+    // Profil sayfası
+    if (view === "profile") {
+        return (
+            <>
+                <Header
+                    user={user}
+                    searchQuery={searchQuery}
+                    setSearchQuery={setSearchQuery}
+                    onSearch={handleSearch}
+                    onLogout={() => { setUser(null); setView("home"); }}
+                    onProfile={() => setView("profile")} // Header'dan tekrar girilebilir
+                />
+                <ProfilePage
+                    user={user}
+                    userId={userId}
+                    wishlist={wishlist}
+                    watchedlist={watchedlist}
+                    onBack={() => setView("home")}
+                    onAddWishlist={(m) => addToWishlist(m)}      // 🔴 eklendi
+                    onAddWatched={(m) => addToWatchedlist(m)}    // 🔴 eklendi
+                />
+            </>
+        );
+    }
+
+    // Ana sayfa
+    return (
+        <div>
+            <Header
+                user={user}
+                searchQuery={searchQuery}
+                setSearchQuery={setSearchQuery}
+                onSearch={handleSearch}
+                onLogout={() => setUser(null)}
+                onProfile={() => setView("profile")}
+            />
+
+            <main style={mainContentStyle}>
+                {searchResults.length > 0 && (
+                    <section>
+                        <div style={sectionHeaderStyle}>
+                            <h2 style={sectionTitleStyle}>🔍 Arama Sonuçları</h2>
+                        </div>
+                        <MovieGrid
+                            items={searchResults}
+                            fromTmdb
+                            onAddWishlist={addToWishlist}
+                            onAddWatched={addToWatchedlist}
+                            userId={userId}
+                        />
+                    </section>
+                )}
+
+                <div style={containerStyle}>
+                    {/* Hero - Featured Movie */}
+                    <section
+                        style={{
+                            position: "relative",
+                            height: "60vh",
+                            display: "flex",
+                            alignItems: "center",
+                            marginBottom: "60px",
+                            borderRadius: "20px",
+                            overflow: "hidden",
+                            background: tmdbMovies.length > 0 && tmdbMovies[0]?.poster_path
+                                ? `linear-gradient(135deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 50%, rgba(0,0,0,0.8) 100%),
+                                   url(https://image.tmdb.org/t/p/original${tmdbMovies[0].backdrop_path || tmdbMovies[0].poster_path}) center/cover`
+                                : "linear-gradient(135deg, rgba(0,0,0,0.7), rgba(0,0,0,0.5)), linear-gradient(135deg, #1a2332, #0f1419)"
+                        }}
+                    >
+                        <div style={{
+                            display: "flex",
+                            alignItems: "center",
+                            width: "100%",
+                            padding: "40px",
+                            gap: "40px"
+                        }}>
+                            {/* Sol taraf - Film posteri */}
+                            {tmdbMovies.length > 0 && tmdbMovies[0]?.poster_path && (
+                                <div style={{
+                                    flexShrink: 0,
+                                    width: "200px",
+                                    height: "300px",
+                                    borderRadius: "12px",
+                                    overflow: "hidden",
+                                    boxShadow: "0 25px 50px rgba(0,0,0,0.5)",
+                                    border: "3px solid rgba(255,255,255,0.1)"
+                                }}>
+                                    <img
+                                        src={`https://image.tmdb.org/t/p/w500${tmdbMovies[0].poster_path}`}
+                                        alt={tmdbMovies[0].title}
+                                        style={{
+                                            width: "100%",
+                                            height: "100%",
+                                            objectFit: "cover"
+                                        }}
+                                    />
+                                </div>
+                            )}
+
+                            {/* Sağ taraf - İçerik */}
+                            <div style={{ flex: 1, zIndex: 2 }}>
+                                <div style={{
+                                    display: "inline-block",
+                                    padding: "8px 16px",
+                                    backgroundColor: "rgba(220, 38, 38, 0.2)",
+                                    border: "1px solid rgba(220, 38, 38, 0.3)",
+                                    borderRadius: "25px",
+                                    marginBottom: "20px"
+                                }}>
+                                    <span style={{
+                                        color: "#ff6b6b",
+                                        fontSize: "0.9rem",
+                                        fontWeight: "600",
+                                        letterSpacing: "0.5px"
+                                    }}>
+                                        {tmdbMovies.length > 0 ? "ÖNERILEN FİLM" : "KEŞFET"}
+                                    </span>
+                                </div>
+
+                                <h1
+                                    style={{
+                                        fontSize: tmdbMovies.length > 0 ? "2.5rem" : "3.5rem",
+                                        fontWeight: "bold",
+                                        marginBottom: "15px",
+                                        background: "linear-gradient(45deg, #dc2626, #ff6b6b)",
+                                        WebkitBackgroundClip: "text",
+                                        WebkitTextFillColor: "transparent",
+                                        backgroundClip: "text",
+                                        lineHeight: "1.2"
+                                    }}
+                                >
+                                    {tmdbMovies.length > 0 && tmdbMovies[0]?.title
+                                        ? tmdbMovies[0].title
+                                        : "WatchMatch"
+                                    }
+                                </h1>
+
+                                <p
+                                    style={{
+                                        fontSize: "1.1rem",
+                                        color: "rgba(255, 255, 255, 0.8)",
+                                        marginBottom: "25px",
+                                        lineHeight: "1.6",
+                                        maxWidth: "600px"
+                                    }}
+                                >
+                                    {tmdbMovies.length > 0 && tmdbMovies[0]?.overview
+                                        ? tmdbMovies[0].overview.slice(0, 150) + (tmdbMovies[0].overview.length > 150 ? "..." : "")
+                                        : "Film Review & Movie Database Application"
+                                    }
+                                </p>
+
+                                {/* Film detayları */}
+                                {tmdbMovies.length > 0 && tmdbMovies[0] && (
+                                    <div style={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: "25px",
+                                        marginBottom: "20px"
+                                    }}>
+                                        {tmdbMovies[0].release_date && (
+                                            <div style={{
+                                                display: "flex",
+                                                alignItems: "center",
+                                                gap: "8px"
+                                            }}>
+                                                <span style={{ color: "rgba(255,255,255,0.5)", fontSize: "0.9rem" }}>📅</span>
+                                                <span style={{ color: "rgba(255,255,255,0.7)", fontSize: "0.95rem", fontWeight: "500" }}>
+                                                    {new Date(tmdbMovies[0].release_date).getFullYear()}
+                                                </span>
+                                            </div>
+                                        )}
+
+                                        {tmdbMovies[0].vote_average && (
+                                            <div style={{
+                                                display: "flex",
+                                                alignItems: "center",
+                                                gap: "8px"
+                                            }}>
+                                                <span style={{ color: "rgba(255,255,255,0.5)", fontSize: "0.9rem" }}>⭐</span>
+                                                <span style={{ color: "rgba(255,255,255,0.7)", fontSize: "0.95rem", fontWeight: "500" }}>
+                                                    {tmdbMovies[0].vote_average.toFixed(1)}
+                                                </span>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Gradient overlay */}
+                        <div style={{
+                            position: "absolute",
+                            inset: 0,
+                            background: "linear-gradient(135deg, rgba(0,0,0,0.3) 0%, transparent 50%, rgba(0,0,0,0.6) 100%)",
+                            pointerEvents: "none"
+                        }} />
+                    </section>
+
+                    {/* TMDB Popüler */}
+                    <section>
+                        <div style={sectionHeaderStyle}>
+                            <h2 style={sectionTitleStyle}>🌍 TMDB Popüler Filmler</h2>
+                        </div>
+                        {tmdbLoading ? (
+                            <p style={{ textAlign: "center", padding: "60px 20px", color: "rgba(255, 255, 255, 0.6)", fontSize: "1.1rem" }}>
+                                ⏳ Yükleniyor...
+                            </p>
+                        ) : (
+                            <MovieGrid
+                                items={tmdbMovies}
+                                fromTmdb
+                                onAddWishlist={addToWishlist}
+                                onAddWatched={addToWatchedlist}
+                                userId={userId}
+                            />
+                        )}
+                    </section>
+
+                    {/* DB Filmleri */}
+                    <section>
+                        <div style={sectionHeaderStyle}>
+                            <h2 style={sectionTitleStyle}>🎥 Film Listesi</h2>
+                        </div>
+                        {loading ? (
+                            <p style={{ textAlign: "center", padding: "60px 20px", color: "rgba(255, 255, 255, 0.6)", fontSize: "1.1rem" }}>
+                                ⏳ Yükleniyor...
+                            </p>
+                        ) : (
+                            <MovieGrid
+                                items={movies}
+                                emptyText="Hiç film bulunamadı"
+                                onAddWishlist={addToWishlist}
+                                onAddWatched={addToWatchedlist}
+                                userId={userId}
+                            />
+                        )}
+                    </section>
+
+                    {/* İstek Listesi */}
+                    <section>
+                        <div style={sectionHeaderStyle}>
+                            <h2 style={sectionTitleStyle}>💡 İstek Listem</h2>
+                        </div>
+                        <MovieGrid
+                            items={wishlist}
+                            emptyText="Liste boş"
+                            onAddWishlist={() => {}}
+                            onAddWatched={() => {}}
+                            userId={userId}
+                        />
+                    </section>
+
+                    {/* İzlediklerim */}
+                    <section>
+                        <div style={sectionHeaderStyle}>
+                            <h2 style={sectionTitleStyle}>✅ İzlediklerim</h2>
+                        </div>
+                        <MovieGrid
+                            items={watchedlist}
+                            emptyText="Liste boş"
+                            onAddWishlist={() => {}}
+                            onAddWatched={() => {}}
+                            userId={userId}
+                        />
+                    </section>
+
+                    {/* Film Ekleme (debug) */}
+                    <section style={formStyle}>
+                        <h2 style={sectionTitleStyle}>➕ Yeni Film Ekle</h2>
+                        <div>
+                            <div style={formRowStyle}>
+                                <input
+                                    type="text"
+                                    placeholder="Başlık"
+                                    value={newMovie.title}
+                                    onChange={(e) => setNewMovie({ ...newMovie, title: e.target.value })}
+                                    style={formInputStyle}
+                                />
+                                <input
+                                    type="text"
+                                    placeholder="Tür"
+                                    value={newMovie.genre}
+                                    onChange={(e) => setNewMovie({ ...newMovie, genre: e.target.value })}
+                                    style={formInputStyle}
+                                />
+                            </div>
+                            <div style={formRowStyle}>
+                                <input
+                                    type="number"
+                                    placeholder="Yıl"
+                                    value={newMovie.releaseYear}
+                                    onChange={(e) => setNewMovie({ ...newMovie, releaseYear: e.target.value })}
+                                    style={formInputStyle}
+                                />
+                                <input
+                                    type="number"
+                                    step="0.1"
+                                    placeholder="Puan"
+                                    value={newMovie.rating}
+                                    onChange={(e) => setNewMovie({ ...newMovie, rating: e.target.value })}
+                                    style={formInputStyle}
+                                />
+                            </div>
+                            <div style={{ ...formRowStyle, gridTemplateColumns: "1fr" }}>
+                                <input
+                                    type="text"
+                                    placeholder="Poster URL"
+                                    value={newMovie.posterUrl}
+                                    onChange={(e) => setNewMovie({ ...newMovie, posterUrl: e.target.value })}
+                                    style={formInputStyle}
+                                />
+                            </div>
+                            <div style={{ ...formRowStyle, gridTemplateColumns: "1fr" }}>
+                <textarea
+                    placeholder="Açıklama"
+                    value={newMovie.description}
+                    onChange={(e) => setNewMovie({ ...newMovie, description: e.target.value })}
+                    rows="3"
+                    style={{ ...formInputStyle, resize: "vertical" }}
+                />
+                            </div>
+                            <button onClick={handleAddMovie} style={btnStyle}>Ekle</button>
+                        </div>
+                    </section>
+                </div>
+            </main>
+        </div>
+    );
+}
+
+export default App;
