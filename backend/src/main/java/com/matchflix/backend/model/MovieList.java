@@ -3,13 +3,14 @@ import jakarta.persistence.*;
 import java.util.ArrayList;
 import java.util.List;
 import com.fasterxml.jackson.annotation.JsonProperty;
-
+import com.matchflix.backend.helper.ListTypeResolver;
 @Entity
 @Table(
         name = "movie_list",
         indexes = @Index(name = "idx_movie_list_user", columnList = "user_id")
 )
 public class MovieList {
+
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
@@ -39,6 +40,21 @@ public class MovieList {
             inverseJoinColumns = @JoinColumn(name = "movie_id")
     )
     private List<Movie> movies = new ArrayList<>();
+
+
+    public enum ListType { WATCHED, WISHLIST, OTHER }
+
+    public ListType getListType() {
+        return listType;
+    }
+
+    public void setListType(ListType listType) {
+        this.listType = listType;
+    }
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "list_type", nullable = false)
+    private ListType listType;
 
     // getters/setters
     public Long getId() { return id; }

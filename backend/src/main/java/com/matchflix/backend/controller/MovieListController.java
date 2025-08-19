@@ -73,6 +73,7 @@ public class MovieListController {
             ml.setListDescription(body.getListDescription());
             ml.setListImage(body.getListImage());
             ml.setListRating(body.getListRating());
+            ml.setListType(MovieList.ListType.OTHER);
 
             if (body.getMovies() != null && !body.getMovies().isEmpty()) {
                 List<Long> ids = body.getMovies().stream()

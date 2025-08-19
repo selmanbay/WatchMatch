@@ -8,7 +8,8 @@ import com.matchflix.backend.repository.UserRepository;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-
+import com.matchflix.backend.repository.MovieListRepository;
+import com.matchflix.backend.model.MovieList;
 import java.util.Optional;
 
 @Service
@@ -17,13 +18,15 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final CountryRepository countryRepository;
+    private final MovieListRepository movieListRepository;
 
     // ctor injection
     public UserService(UserRepository userRepository,
-                       PasswordEncoder passwordEncoder, CountryRepository countryRepository) {
+                       PasswordEncoder passwordEncoder, CountryRepository countryRepository, MovieListRepository movieListRepository) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.countryRepository = countryRepository;
+        this.movieListRepository = movieListRepository;
     }
 
     public User registerUser(User user) {
@@ -60,6 +63,26 @@ public class UserService {
         user.setPassword(encoded);
         user.setFirstName(firstName);
         user.setLastName(lastName);
+
+
+        MovieList watchlist = new MovieList();
+        watchlist.setListName("My Watchlist");
+        watchlist.setListDescription("İzlediklerim");
+        watchlist.setListImage("default_watch.png");
+        watchlist.setListRating("0");
+        watchlist.setUser(user);
+        watchlist.setListType(MovieList.ListType.WATCHED);
+        movieListRepository.save(watchlist);
+
+        // Wishlist
+        MovieList wishlist = new MovieList();
+        wishlist.setListName("My Wishlist");
+        wishlist.setListDescription("İzlemek istediklerim");
+        wishlist.setListImage("default_wish.png");
+        wishlist.setListRating("0");
+        wishlist.setUser(user);
+        wishlist.setListType(MovieList.ListType.WISHLIST);
+        movieListRepository.save(wishlist);
 
         try {
             return userRepository.save(user);
