@@ -2,5 +2,8 @@
   "dependencies": {
     "lucide-react": "^0.540.0",
     "web-vitals": "^5.1.0"
+  },
+  "devDependencies": {
+    "@craco/craco": "^7.1.0"
   }
 }

@@ -8,13 +8,16 @@ public final class UserMapper {
 
     public static UserDto toDto(User u) {
         if (u == null) return null;
+
         UserDto d = new UserDto();
         d.setId(u.getId());
         d.setEmail(u.getEmail());
         d.setUsername(u.getUsername());
         d.setFirstName(u.getFirstName());
         d.setLastName(u.getLastName());
-        d.setPpLink(u.getPp_link());
+
+        // Avatar (entity alanı: pp_link). DTO setter'ı ppLink ve avatarUrl'i senkronlar.
+        d.setAvatarUrl(u.getPp_link());
 
         if (u.getCountry() != null) {
             d.setCountryId(u.getCountry().getId());
