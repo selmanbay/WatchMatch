@@ -21,6 +21,9 @@ public class Genre {
     @Column(name = "fav_count")
     private Integer favCount = 0;
 
+    @ManyToMany(mappedBy = "genres")
+    private List<Movie> movies = new ArrayList<>();
+
     // getters/setters
     public Long getId() { return id; }
     public String getGenreName() { return genreName; }

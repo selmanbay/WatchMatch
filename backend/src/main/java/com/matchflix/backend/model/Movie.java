@@ -18,6 +18,13 @@ public class Movie {
     @Column(name = "poster_url")   private String posterUrl;
     private double rating;
     @Column(columnDefinition = "text") private String description;
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+            name = "movie_genres",
+            joinColumns = @JoinColumn(name = "movie_id"),
+            inverseJoinColumns = @JoinColumn(name = "genre_id")
+    )
+    private List<Genre> genres = new ArrayList<>();
 
     public List<Genre> getGenres() {
         return genres;
@@ -83,11 +90,4 @@ public class Movie {
         this.id = id;
     }
 
-    @ManyToMany(fetch = FetchType.LAZY)
-    @JoinTable(
-            name = "movie_genres",
-            joinColumns = @JoinColumn(name = "movie_id"),   // join tablosundaki kolon
-            inverseJoinColumns = @JoinColumn(name = "genre_id")
-    )
-    private List<Genre> genres = new ArrayList<>();
 }

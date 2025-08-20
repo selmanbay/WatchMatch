@@ -154,8 +154,8 @@ public class MovieService {
                     m.setRating(dto.getVoteAverage());
                     m.setDescription(nvl(dto.getOverview(), ""));
 
-                    // Genres: TMDb ID -> İsim -> Genre bul/oluştur
-                    m.setGenres(genreService.resolveGenres(dto.getGenreIds()));
+                    List<Genre> genres = genreService.resolveGenres(dto.getGenreIds());
+                    m.setGenres(genres);
 
                     // Yarış durumu ihtimaline karşı güvenli kayıt
                     try {
