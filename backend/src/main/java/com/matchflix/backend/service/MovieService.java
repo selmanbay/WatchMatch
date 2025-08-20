@@ -135,6 +135,7 @@ public class MovieService {
             return 0;
         }
     }
+    @Transactional
     public Movie importFromTmdb(Long tmdbId) {
         return movieRepository.findByTmdbId(tmdbId)
                 .orElseGet(() -> {

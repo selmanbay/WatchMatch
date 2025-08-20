@@ -1,10 +1,9 @@
 package com.matchflix.backend.service;
-
 import com.matchflix.backend.model.Genre;
 import com.matchflix.backend.repository.GenreRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
+import org.springframework.transaction.annotation.Propagation;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -28,7 +27,7 @@ public class GenreService {
             Map.entry(37L, "Western")
     );
 
-    @Transactional
+    @Transactional(propagation = Propagation.SUPPORTS, readOnly = true)
     public List<Genre> resolveGenres(List<Long> tmdbGenreIds) {
         if (tmdbGenreIds == null || tmdbGenreIds.isEmpty()) return new ArrayList<>();
 
