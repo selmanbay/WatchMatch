@@ -1,6 +1,8 @@
 package com.matchflix.backend.service;
 import com.matchflix.backend.dto.TmdbMovieDto;
+import com.matchflix.backend.model.MovieFeatures;
 import com.matchflix.backend.model.Movie;
+import com.matchflix.backend.repository.MovieFeaturesRepository;
 import com.matchflix.backend.repository.MovieRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
@@ -21,14 +23,16 @@ public class MovieService {
     private final TmdbService tmdbService;
     private final GenreRepository genreRepository;
     private final GenreService genreService;
+    private final MovieFeaturesRepository movieFeaturesRepository;
 
     public MovieService(MovieRepository movieRepository,
 
-                        TmdbService tmdbService, GenreRepository genreRepository, GenreService genreService) {
+                        TmdbService tmdbService, GenreRepository genreRepository, GenreService genreService, MovieFeaturesRepository movieFeaturesRepository) {
         this.movieRepository = movieRepository;
         this.tmdbService = tmdbService;
         this.genreRepository = genreRepository;
         this.genreService = genreService;
+        this.movieFeaturesRepository = movieFeaturesRepository;
     }
 
     public List<Movie> getAllMovies() {
@@ -158,7 +162,10 @@ public class MovieService {
                     List<Genre> genres = genreService.resolveGenres(dto.getGenreIds());
                     m.setGenres(genres);
 
-                    // Yarış durumu ihtimaline karşı güvenli kayıt
+                    Movie saved = movieRepository.save(m);
+
+                    tmdbService.upsertFeatures(saved, tmdbId);
+
                     try {
                         return movieRepository.save(m);   // <-- Movie döndür!
                     } catch (DataIntegrityViolationException e) {

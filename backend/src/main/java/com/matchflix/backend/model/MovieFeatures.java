@@ -1,60 +1,57 @@
+// src/main/java/com/matchflix/backend/model/MovieFeatures.java
 package com.matchflix.backend.model;
 
 import jakarta.persistence.*;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
-
 import java.util.List;
 
 @Entity
 @Table(name = "movie_features")
 public class MovieFeatures {
-
     @Id
     @Column(name = "movie_id")
-    private Long movieId;
+    private Long id; // PK = movies.id
 
-    @OneToOne(fetch = FetchType.LAZY)
     @MapsId
-    @JoinColumn(name = "movie_id", referencedColumnName = "id")
+    @OneToOne
+    @JoinColumn(name = "movie_id")
     private Movie movie;
 
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "director_ids", columnDefinition = "jsonb")
-    private List<Long> directorIds;
-
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "director_names", columnDefinition = "jsonb")
+    @Column(name = "director_names", columnDefinition = "text")
+    @Convert(converter = com.matchflix.backend.utility.StringListJsonConverter.class)
     private List<String> directorNames;
 
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "actor_ids", columnDefinition = "jsonb")
-    private List<Long> actorIds;
+    @Column(name = "director_ids", columnDefinition = "text")
+    @Convert(converter = com.matchflix.backend.utility.LongListJsonConverter.class)
+    private List<Long> directorIds;
 
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "actor_names", columnDefinition = "jsonb")
+    @Column(name = "actor_names", columnDefinition = "text")
+    @Convert(converter = com.matchflix.backend.utility.StringListJsonConverter.class)
     private List<String> actorNames;
 
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "keywords", columnDefinition = "jsonb")
+    @Column(name = "actor_ids", columnDefinition = "text")
+    @Convert(converter = com.matchflix.backend.utility.LongListJsonConverter.class)
+    private List<Long> actorIds;
+
+    @Column(name = "keywords", columnDefinition = "text")
+    @Convert(converter = com.matchflix.backend.utility.StringListJsonConverter.class)
     private List<String> keywords;
 
     @Column(name = "overview", columnDefinition = "text")
     private String overview;
 
-    // getters/setters
-    public Long getMovieId() { return movieId; }
-    public void setMovieId(Long movieId) { this.movieId = movieId; }
+    // getters & setters
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
     public Movie getMovie() { return movie; }
     public void setMovie(Movie movie) { this.movie = movie; }
-    public List<Long> getDirectorIds() { return directorIds; }
-    public void setDirectorIds(List<Long> directorIds) { this.directorIds = directorIds; }
     public List<String> getDirectorNames() { return directorNames; }
     public void setDirectorNames(List<String> directorNames) { this.directorNames = directorNames; }
-    public List<Long> getActorIds() { return actorIds; }
-    public void setActorIds(List<Long> actorIds) { this.actorIds = actorIds; }
+    public List<Long> getDirectorIds() { return directorIds; }
+    public void setDirectorIds(List<Long> directorIds) { this.directorIds = directorIds; }
     public List<String> getActorNames() { return actorNames; }
     public void setActorNames(List<String> actorNames) { this.actorNames = actorNames; }
+    public List<Long> getActorIds() { return actorIds; }
+    public void setActorIds(List<Long> actorIds) { this.actorIds = actorIds; }
     public List<String> getKeywords() { return keywords; }
     public void setKeywords(List<String> keywords) { this.keywords = keywords; }
     public String getOverview() { return overview; }
