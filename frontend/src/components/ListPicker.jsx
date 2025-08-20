@@ -5,7 +5,7 @@ import {
     listModalOverlayStyle, listModalCardStyle,
     // içerik
     listPickerHeaderStyle, listPickerBodyStyle,
-    listInputRowStyle, listInputStyle, listCreateBtnStyle,
+    listInputRowStyle, listInputStyle,
     listEmptyTextStyle, listCloseBtnStyle,
     // satır + kutucuk
     listRowStyle, listCheckStyle, listNameStyle, listCheckIconStyle
@@ -15,6 +15,63 @@ import {
     addTmdbToList, addMovieToList,
     getListById, removeMovieFromList
 } from "../api/movieLists";
+
+/* === Beyaz çerçeveli + #650E0EFF paletli etkileşimli buton === */
+function PrimaryButton650({ onClick, children, disabled, busy, style, ...rest }) {
+    const [hovered, setHovered] = useState(false);
+    const [pressed, setPressed] = useState(false);
+
+    const BASE  = "#650E0EFF";
+    const HOVER = "#7A1616FF";
+    const PRESS = "#4F0B0BFF";
+
+    const bg = pressed ? PRESS : hovered ? HOVER : BASE;
+
+    const baseStyle = {
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 8,
+        padding: "10px 14px",
+        minHeight: 40,
+        borderRadius: 12,
+        userSelect: "none",
+        cursor: disabled || busy ? "not-allowed" : "pointer",
+        border: "1px solid rgba(255,255,255,0.95)", // ⬅️ beyaz çerçeve
+        color: "#fff",
+        background: bg,
+        transition:
+            "transform 80ms ease, box-shadow 160ms ease, background 160ms ease, border-color 160ms ease, opacity 160ms ease",
+        transform:
+            disabled || busy ? "none" : (pressed ? "translateY(1px) scale(0.98)" : (hovered ? "translateY(-1px)" : "none")),
+        boxShadow:
+            disabled || busy ? "0 2px 6px rgba(0,0,0,.2)"
+                : pressed ? "0 2px 8px rgba(0,0,0,.25)"
+                    : hovered ? "0 6px 16px rgba(0,0,0,.35)"
+                        : "0 2px 6px rgba(0,0,0,.25)",
+        opacity: disabled ? 0.5 : 1,
+        fontWeight: 700,
+        fontSize: 14,
+        ...style
+    };
+
+    return (
+        <button
+            type="button"
+            onClick={disabled || busy ? undefined : onClick}
+            onMouseEnter={() => !disabled && !busy && setHovered(true)}
+            onMouseLeave={() => { setHovered(false); setPressed(false); }}
+            onMouseDown={() => !disabled && !busy && setPressed(true)}
+            onMouseUp={() => setPressed(false)}
+            aria-busy={busy || undefined}
+            disabled={disabled}
+            style={baseStyle}
+            {...rest}
+        >
+            {children}
+        </button>
+    );
+}
 
 // ---- yardımcılar ----
 const withTimeout = (p, ms = 12000) =>
@@ -191,14 +248,15 @@ export default function ListPicker({
                             maxLength={60}
                             autoFocus
                         />
-                        <button
-                            style={listCreateBtnStyle}
+                        <PrimaryButton650
                             onClick={doCreate}
                             disabled={creating || !newName.trim()}
-                            aria-busy={creating}
+                            busy={creating}
+                            // dilersen küçük bir minWidth ver:
+                            style={{ minWidth: 110 }}
                         >
                             {creating ? "..." : "Oluştur"}
-                        </button>
+                        </PrimaryButton650>
                     </div>
 
                     {error && <div style={{ color: "#ef4444", fontSize: 13, whiteSpace: "pre-wrap" }}>{error}</div>}

@@ -1,3 +1,4 @@
+// src/components/MovieGrid.jsx
 import React, { useState, useMemo } from "react";
 import { movieGridStyle } from "../styles/ui";
 import MovieCard from "./MovieCard";
@@ -11,8 +12,8 @@ export default function MovieGrid({
                                       onAddWatched,
                                       onRemoveWishlist,   // opsiyonel
                                       onRemoveWatched,    // opsiyonel
-                                      userId,             // ⬅️ kullanıcı id (Film Listesi için gerekli)
-                                      onMovieClick        // ⬅️ NEW: Movie click handler for hero background
+                                      userId,             // ⬅️ Film Listesi için gerekli
+                                      onMovieClick        // ⬅️ Hero arka planını güncellemek için
                                   }) {
     const [open, setOpen] = useState(false);
     const [selected, setSelected] = useState(null);
@@ -20,13 +21,12 @@ export default function MovieGrid({
     const handleOpenDetail = (movie) => {
         // Hero background güncellemesi
         onMovieClick?.(movie);
-
         // Modal state
         setSelected(movie);
         setOpen(true);
     };
 
-    // 🔽 En çok izlenen (vote_count) → popularity → vote_average sırası
+    // En çok izlenen (vote_count) → popularity → vote_average → tarih
     const sortedItems = useMemo(() => {
         const list = Array.isArray(items) ? [...items] : [];
         return list.sort((a, b) => {
@@ -42,7 +42,6 @@ export default function MovieGrid({
             const bva = b?.vote_average ?? 0;
             if (bva !== ava) return bva - ava;
 
-            // Son çare: daha yeni tarih önce gelsin
             const ar = (a?.release_date || a?.first_air_date || a?.releaseYear || "") + "";
             const br = (b?.release_date || b?.first_air_date || b?.releaseYear || "") + "";
             return br.localeCompare(ar);
@@ -70,12 +69,12 @@ export default function MovieGrid({
                         onRemoveWishlist={onRemoveWishlist}
                         onRemoveWatched={onRemoveWatched}
                         onOpenDetail={handleOpenDetail} // karta tıkla → detay aç + hero background güncelle
-                        userId={userId}                 // ⬅️ Film Listesi paneli için gerekli
+                        userId={userId}                 // Film Listesi paneli için gerekli
                     />
                 ))}
             </div>
 
-            {/* ❗ Modal'ı sadece açıkken mount et */}
+            {/* Modal'ı açıkken göster */}
             {open && (
                 <MovieDetailModal
                     open
@@ -84,6 +83,7 @@ export default function MovieGrid({
                     fromTmdb={fromTmdb}
                     onAddWishlist={onAddWishlist}
                     onAddWatched={onAddWatched}
+                    userId={userId} // 🎞️ Film Listesi butonu için gerekli
                 />
             )}
         </>

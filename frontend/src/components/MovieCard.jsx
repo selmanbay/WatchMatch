@@ -5,7 +5,6 @@ import {
     movieCardStyle,       // posterin bulunduğu asıl kart
     moviePosterStyle,
     addToListHoverBtnStyle,
-    expandMenuItemStyle,  // kırmızı gradient buton
     statusWrapStyle,
     statusBadgeStyle,
     ribbonWrapStyle,
@@ -13,6 +12,57 @@ import {
 } from "../styles/ui";
 import { pickPoster } from "../utils/images";   // ✅ poster normalizer
 import ListPicker from "./ListPicker";          // 🎞️ Film Listesi paneli
+
+/* === Beyaz çerçeveli + #650E0EFF paletli etkileşimli buton === */
+function ActionButton({ onClick, children, style }) {
+    const [hovered, setHovered] = useState(false);
+    const [pressed, setPressed] = useState(false);
+
+    const BASE  = "#650E0EFF";
+    const HOVER = "#7A1616FF";
+    const PRESS = "#4F0B0BFF";
+
+    const base = {
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 8,
+        width: "100%",
+        padding: "10px 14px",
+        borderRadius: 12,
+        userSelect: "none",
+        cursor: "pointer",
+        border: "1px solid rgba(255,255,255,0.95)", // ⬅️ beyaz çerçeve
+        color: "#fff",
+        background: pressed ? PRESS : hovered ? HOVER : BASE,
+        transition:
+            "transform 80ms ease, box-shadow 160ms ease, background 160ms ease, border-color 160ms ease",
+        transform: pressed ? "translateY(1px) scale(0.98)" : hovered ? "translateY(-1px)" : "none",
+        boxShadow: pressed
+            ? "0 2px 8px rgba(0,0,0,.25)"
+            : hovered
+                ? "0 6px 16px rgba(0,0,0,.35)"
+                : "0 2px 6px rgba(0,0,0,.25)",
+        outline: "none",
+        fontWeight: 700,
+        fontSize: 13,
+        ...style
+    };
+
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            onMouseEnter={() => setHovered(true)}
+            onMouseLeave={() => { setHovered(false); setPressed(false); }}
+            onMouseDown={() => setPressed(true)}
+            onMouseUp={() => setPressed(false)}
+            style={base}
+        >
+            {children}
+        </button>
+    );
+}
 
 export default function MovieCard({
                                       movie,
@@ -84,11 +134,6 @@ export default function MovieCard({
         maxWidth: 280
     };
 
-    // Hover parlaklığı
-    const brighten = (el, on) => {
-        if (el) el.style.filter = on ? "brightness(1.06)" : "none";
-    };
-
     // —————— Tek-durum (mutually exclusive) ——————
     const handleWishlist = (e) => {
         e.stopPropagation();
@@ -158,7 +203,7 @@ export default function MovieCard({
                     )}
                 </div>
 
-                {/* Hover'da görünen kırmızı buton */}
+                {/* Hover'da görünen “+ Ekle” tetikleyici */}
                 <button
                     style={addBtnStyle}
                     onClick={(e) => {
@@ -188,32 +233,9 @@ export default function MovieCard({
                         style={overlayInnerStyle}
                         onClick={(e) => e.stopPropagation()} // içeriğe tıklayınca kapanmasın
                     >
-                        <button
-                            style={{ ...expandMenuItemStyle, width: "100%" }}
-                            onMouseEnter={(e) => brighten(e.currentTarget, true)}
-                            onMouseLeave={(e) => brighten(e.currentTarget, false)}
-                            onClick={handleWishlist}
-                        >
-                            + İstek Listesi
-                        </button>
-
-                        <button
-                            style={{ ...expandMenuItemStyle, width: "100%" }}
-                            onMouseEnter={(e) => brighten(e.currentTarget, true)}
-                            onMouseLeave={(e) => brighten(e.currentTarget, false)}
-                            onClick={handleWatched}
-                        >
-                            + İzledim
-                        </button>
-
-                        <button
-                            style={{ ...expandMenuItemStyle, width: "100%" }}
-                            onMouseEnter={(e) => brighten(e.currentTarget, true)}
-                            onMouseLeave={(e) => brighten(e.currentTarget, false)}
-                            onClick={openListPicker}
-                        >
-                            + Film Listesi
-                        </button>
+                        <ActionButton onClick={handleWishlist}>+ İstek Listesi</ActionButton>
+                        <ActionButton onClick={handleWatched}>+ İzledim</ActionButton>
+                        <ActionButton onClick={openListPicker}>+ Film Listesi</ActionButton>
                     </div>
                 </div>
 

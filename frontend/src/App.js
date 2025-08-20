@@ -675,7 +675,7 @@ function App() {
                         {/* TMDB Popüler */}
                         <section>
                             <div style={sectionHeaderStyle}>
-                                <h2 style={sectionTitleStyle}>🌍 TMDB Popüler Filmler</h2>
+                                <h2 style={sectionTitleStyle}>Popüler Filmler</h2>
                             </div>
                             {tmdbLoading ? (
                                 <p
