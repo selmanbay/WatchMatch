@@ -1,5 +1,5 @@
 // src/components/MovieDetailModal.jsx
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
     detailOverlayStyle, detailContainerStyle, detailHeaderStyle, detailHeaderShadeStyle,
     detailCloseBtnStyle, detailBodyStyle, detailPosterLargeStyle,
@@ -14,10 +14,9 @@ function ActionButton({ onClick, children, style }) {
     const [hovered, setHovered] = useState(false);
     const [pressed, setPressed] = useState(false);
 
-    // Renk paleti
-    const BASE  = "#650E0EFF";
-    const HOVER = "#7A1616FF";
-    const PRESS = "#4F0B0BFF";
+    const BASE  = "#650E0E";
+    const HOVER = "#7A1616";
+    const PRESS = "#4F0B0B";
 
     const base = {
         display: "inline-flex",
@@ -27,7 +26,7 @@ function ActionButton({ onClick, children, style }) {
         borderRadius: 12,
         userSelect: "none",
         cursor: "pointer",
-        border: "1px solid rgba(255,255,255,0.95)", // ⬅️ beyaz çerçeve
+        border: "1px solid rgba(255,255,255,0.95)",
         color: "#fff",
         background: pressed ? PRESS : hovered ? HOVER : BASE,
         transition:
@@ -57,119 +56,36 @@ function ActionButton({ onClick, children, style }) {
     );
 }
 
-/* === Yatay kaydırıcı (ok + wheel + sürükle + dokunma) === */
-function HScroller({ children }) {
-    const ref = useRef(null);
-    const [dragging, setDragging] = useState(false);
-    const drag = useRef({ active: false, sx: 0, sl: 0 });
-
-    const scrollBy = (dx) => ref.current?.scrollBy({ left: dx, behavior: "smooth" });
-
-    const onWheel = (e) => {
-        if (!ref.current) return;
-        if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
-            e.preventDefault();
-            ref.current.scrollLeft += e.deltaY;
-        }
-    };
-    const startDrag = (x) => {
-        if (!ref.current) return;
-        drag.current = { active: true, sx: x, sl: ref.current.scrollLeft };
-        setDragging(true);
-    };
-    const moveDrag = (x) => {
-        if (!drag.current.active || !ref.current) return;
-        ref.current.scrollLeft = drag.current.sl - (x - drag.current.sx);
-    };
-    const endDrag = () => {
-        drag.current.active = false;
-        setDragging(false);
-    };
-
-    const onMouseDown = (e) => startDrag(e.clientX);
-    const onMouseMove = (e) => {
-        if (!drag.current.active) return;
-        e.preventDefault();
-        moveDrag(e.clientX);
-    };
-
-    // Touch desteği
-    const onTouchStart = (e) => {
-        const x = e.touches?.[0]?.clientX ?? 0;
-        startDrag(x);
-    };
-    const onTouchMove = (e) => {
-        const x = e.touches?.[0]?.clientX ?? 0;
-        moveDrag(x);
-    };
-    const onTouchEnd = () => endDrag();
-
-    const trackStyle = {
-        display: "grid",
-        gridAutoFlow: "column",
-        gridAutoColumns: "min-content",
-        gap: 12,
-        overflowX: "auto",
-        overflowY: "hidden",
-        padding: "6px 2px 10px 2px",
-        scrollSnapType: "x proximity",
-        WebkitOverflowScrolling: "touch",
-        scrollbarWidth: "thin",
-        cursor: dragging ? "grabbing" : "grab",
-        maskImage:
-            "linear-gradient(to right, transparent 0, black 12px, black calc(100% - 12px), transparent 100%)"
-    };
-    const btnStyle = {
-        position: "absolute",
-        top: "50%",
-        transform: "translateY(-50%)",
-        background: "rgba(0,0,0,.55)",
-        border: "1px solid rgba(255,255,255,.2)",
-        color: "#fff",
-        width: 32,
-        height: 32,
-        borderRadius: 8,
-        display: "grid",
-        placeItems: "center",
-        cursor: "pointer",
-        zIndex: 2
-    };
-
-    return (
-        <div style={{ position: "relative" }}>
-            <button style={{ ...btnStyle, left: 0 }} onClick={() => scrollBy(-320)} aria-label="Sol">‹</button>
-            <div
-                ref={ref}
-                style={trackStyle}
-                onWheel={onWheel}
-                onMouseDown={onMouseDown}
-                onMouseMove={onMouseMove}
-                onMouseLeave={endDrag}
-                onMouseUp={endDrag}
-                onTouchStart={onTouchStart}
-                onTouchMove={onTouchMove}
-                onTouchEnd={onTouchEnd}
-            >
-                {children}
-            </div>
-            <button style={{ ...btnStyle, right: 0 }} onClick={() => scrollBy(320)} aria-label="Sağ">›</button>
-        </div>
-    );
-}
-
-/* === Kişi kartı === */
+/* === Kişi kartı (grid için) === */
 function PersonCard({ name, role, photo }) {
+    const initials = (name || "?")
+        .split(" ")
+        .map(w => w[0])
+        .join("")
+        .slice(0, 2)
+        .toUpperCase();
+
     const card = {
-        width: 96,
-        scrollSnapAlign: "start",
+        width: "100%",
         background: "rgba(255,255,255,.06)",
         border: "1px solid rgba(255,255,255,.12)",
         borderRadius: 10,
-        overflow: "hidden"
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column"
     };
-    const imgBox = { width: "100%", height: 120, background: "rgba(0,0,0,.35)", display: "grid", placeItems: "center" };
-    const nameS = { fontSize: 12, fontWeight: 700, padding: "6px 8px 2px 8px" };
-    const roleS = { fontSize: 11, opacity: 0.75, padding: "0 8px 8px 8px" };
+    const imgBox = {
+        width: "100%",
+        aspectRatio: "2 / 3",
+        background: "rgba(0,0,0,.35)",
+        display: "grid",
+        placeItems: "center",
+        fontWeight: 800,
+        fontSize: 22,
+        letterSpacing: 1
+    };
+    const nameS = { fontSize: 13, fontWeight: 700, padding: "8px 10px 2px 10px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
+    const roleS = { fontSize: 11, opacity: 0.75, padding: "0 10px 10px 10px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
 
     return (
         <div style={card} title={name}>
@@ -179,15 +95,54 @@ function PersonCard({ name, role, photo }) {
                         src={photo}
                         alt={name}
                         style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                        loading="lazy"
                         onError={(e) => (e.currentTarget.style.display = "none")}
                     />
                 ) : (
-                    <span style={{ opacity: 0.7 }}>No Image</span>
+                    <span>{initials}</span>
                 )}
             </div>
             <div style={nameS}>{name}</div>
             {role && <div style={roleS}>{role}</div>}
         </div>
+    );
+}
+
+/* === Grid yerleşimi === */
+function PeopleGrid({ people = [] }) {
+    if (!people.length) return <div style={{ opacity: 0.7 }}>Bilgi yok</div>;
+    return (
+        <div
+            style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))",
+                gap: 12
+            }}
+        >
+            {people.map((p, i) => (
+                <PersonCard key={`${p.id ?? p.name}-${i}`} name={p.name} role={p.role} photo={p.photo} />
+            ))}
+        </div>
+    );
+}
+
+/* === İnce (şeffaf) toggle butonu === */
+function GhostButton({ onClick, children }) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            style={{
+                padding: "8px 12px",
+                borderRadius: 10,
+                border: "1px solid rgba(255,255,255,0.7)",
+                background: "transparent",
+                color: "#fff",
+                cursor: "pointer"
+            }}
+        >
+            {children}
+        </button>
     );
 }
 
@@ -198,7 +153,7 @@ export default function MovieDetailModal({
                                              fromTmdb,
                                              onAddWishlist,
                                              onAddWatched,
-                                             userId // Film Listesi paneli için
+                                             userId
                                          }) {
     const m = movie || {};
 
@@ -273,11 +228,14 @@ export default function MovieDetailModal({
         : Array.isArray(credits?.tmdbCast) ? credits.tmdbCast : [];
 
     const directorsFromCrew = tmdbCrew
-        .filter(c => (c?.job === "Director") || (c?.known_for_department === "Directing" && c?.job?.toLowerCase().includes("director")))
+        .filter(c =>
+            (c?.job === "Director") ||
+            (c?.known_for_department === "Directing" && (c?.job || "").toLowerCase().includes("director"))
+        )
         .map(c => ({ id: c?.id, name: c?.name || c?.original_name, role: "Yönetmen", photo: photoUrl(c?.profile_path) }));
 
     const actorsFromCast = tmdbCast
-        .slice(0, 12)
+        .slice(0, 30)
         .map(c => ({ id: c?.id, name: c?.name || c?.original_name, role: "Oyuncu", photo: photoUrl(c?.profile_path) }));
 
     const people = useMemo(() => {
@@ -300,6 +258,11 @@ export default function MovieDetailModal({
             return Boolean(p.name);
         });
     }, [dirNamesA, dirIdsA, actNamesA, actIdsA, directorsFromCrew, actorsFromCast]);
+
+    // "Daha Fazla / Daha Az" kontrolü
+    const [showAllPeople, setShowAllPeople] = useState(false);
+    const VISIBLE_COUNT = 6;
+    const visiblePeople = showAllPeople ? people : people.slice(0, VISIBLE_COUNT);
 
     // Film Listesi paneli
     const [showListPicker, setShowListPicker] = useState(false);
@@ -359,7 +322,7 @@ export default function MovieDetailModal({
                                 .map((g, i) => <span style={chipStyle} key={i}>{g?.name || g}</span>)}
                         </div>
 
-                        {/* Aksiyon butonları (beyaz çerçeveli) */}
+                        {/* Aksiyon butonları */}
                         <div style={detailActionsRowStyle}>
                             <ActionButton onClick={() => onAddWishlist?.(m)}>İstek Listesi</ActionButton>
                             <ActionButton onClick={() => onAddWatched?.(m)}>İzledim</ActionButton>
@@ -374,7 +337,7 @@ export default function MovieDetailModal({
                             </p>
                         </div>
 
-                        {/* Kadro */}
+                        {/* Kadro (GRID + Daha Fazla/Az) */}
                         <div style={{ marginTop: 16 }}>
                             <div style={{ margin: "14px 0 8px 0", display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ background: "#650e0e", color: "#fff", fontSize: 12, fontWeight: 800, padding: "6px 10px", borderRadius: 999 }}>
@@ -382,19 +345,14 @@ export default function MovieDetailModal({
                 </span>
                             </div>
 
-                            {people.length ? (
-                                <HScroller>
-                                    {people.map((p, i) => (
-                                        <PersonCard
-                                            key={`${p.id ?? p.name}-${i}`}
-                                            name={p.name}
-                                            role={p.role}
-                                            photo={p.photo}
-                                        />
-                                    ))}
-                                </HScroller>
-                            ) : (
-                                <div style={{ opacity: 0.7 }}>Bilgi yok</div>
+                            <PeopleGrid people={visiblePeople} />
+
+                            {people.length > VISIBLE_COUNT && (
+                                <div style={{ display: "flex", justifyContent: "center", marginTop: 12 }}>
+                                    <GhostButton onClick={() => setShowAllPeople(v => !v)}>
+                                        {showAllPeople ? "Daha Az" : "Daha Fazla"}
+                                    </GhostButton>
+                                </div>
                             )}
                         </div>
                     </div>

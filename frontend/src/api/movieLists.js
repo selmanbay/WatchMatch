@@ -1,6 +1,8 @@
 // src/api/movieLists.js
 const BASE = process.env.REACT_APP_API_BASE || "http://localhost:8080";
 
+/* -------------------- ortak yardımcılar -------------------- */
+
 // Genel JSON yanıt yardımcısı
 async function j(res) {
     const text = await res.text();
@@ -30,7 +32,7 @@ export async function getUserLists(userId) {
     );
 }
 
-// 🔎 Liste detayını getir (içindeki movies'i görmek/kontrol etmek için)
+// Liste detayını getir (içindeki movies için)
 export async function getListById(listId) {
     return j(
         await fetch(`${BASE}/api/movie-lists/${listId}`, {
@@ -39,8 +41,7 @@ export async function getListById(listId) {
     );
 }
 
-// ✅ Yeni liste oluştur — BE şeması:
-// { listName, listDescription, listImage, listRating, user: { id } }
+// Yeni liste oluştur — BE şeması: { listName, listDescription, listImage, listRating, user: { id } }
 export async function createList({ userId, name, description, image, rating }) {
     const url = `${BASE}/api/movie-lists`;
 
@@ -49,10 +50,10 @@ export async function createList({ userId, name, description, image, rating }) {
 
     const payload = {
         listName: name,
-        listDescription: (description ?? "").trim() || `Kullanıcı listesi: ${name}`, // NOT NULL
-        listImage: (image ?? "").trim() || "/images/list-placeholder.png",          // NOT NULL
-        listRating: (typeof rating === "number" && !Number.isNaN(rating)) ? rating : 0,
-        user: { id: idValue },                                                      // user.id ZORUNLU
+        listDescription: (description ?? "").trim() || `Kullanıcı listesi: ${name}`,
+        listImage: (image ?? "").trim() || "/images/list-placeholder.png",
+        listRating: typeof rating === "number" && !Number.isNaN(rating) ? rating : 0,
+        user: { id: idValue },
     };
 
     const res = await fetch(url, {
@@ -63,20 +64,20 @@ export async function createList({ userId, name, description, image, rating }) {
     return j(res);
 }
 
-// TMDb’den gelen içeriği listeye ekle
-export async function addTmdbToList(listId, tmdbId) {
+// DB’deki filmi listeye ekle
+export async function addMovieToList(listId, movieId) {
     return j(
-        await fetch(`${BASE}/api/movie-lists/${listId}/tmdb/${tmdbId}`, {
+        await fetch(`${BASE}/api/movie-lists/${listId}/movies/${movieId}`, {
             method: "POST",
             headers: headers(),
         })
     );
 }
 
-// DB’deki filmi listeye ekle
-export async function addMovieToList(listId, movieId) {
+// TMDb’den gelen içeriği (tmdbId) listeye ekle
+export async function addTmdbToList(listId, tmdbId) {
     return j(
-        await fetch(`${BASE}/api/movie-lists/${listId}/movies/${movieId}`, {
+        await fetch(`${BASE}/api/movie-lists/${listId}/tmdb/${tmdbId}`, {
             method: "POST",
             headers: headers(),
         })
@@ -91,4 +92,49 @@ export async function removeMovieFromList(listId, movieId) {
             headers: headers(),
         })
     );
+}
+
+/* -------------------- liste meta / kapak güncelleme -------------------- */
+
+// Listede ad/açıklama/kapak/rating güncelle
+// patch: { name?, description?, image?, rating? }
+export async function updateListMeta(listId, patch = {}) {
+    const payload = {};
+    if (patch.name != null) payload.listName = patch.name;
+    if (patch.description != null) payload.listDescription = patch.description;
+    if (patch.image != null) payload.listImage = patch.image; // BE "image" ve "listImage" ikisini de kabul ediyor
+    if (patch.rating != null) payload.listRating = patch.rating;
+
+    const res = await fetch(`${BASE}/api/movie-lists/${listId}`, {
+        method: "PUT",
+        headers: headers(true),
+        body: JSON.stringify(payload),
+    });
+    return j(res);
+}
+
+// Sadece kapak görselini URL ile güncelle (syntactic sugar)
+export function changeListCover(listId, imageUrl) {
+    return updateListMeta(listId, { image: imageUrl });
+}
+
+/* -------------------- dosya upload (kapak) -------------------- */
+
+// Kapak dosyası yükle (multipart/form-data)
+// ✅ Backend: POST /api/movie-lists/{listId}/cover
+export async function uploadListCover(listId, file) {
+    const fd = new FormData();
+    fd.append("file", file);
+
+    const res = await fetch(`${BASE}/api/movie-lists/${listId}/cover`, {
+        method: "POST",
+        body: fd,
+    });
+
+    if (!res.ok) {
+        let msg = "Kapak yükleme başarısız";
+        try { msg = await res.text(); } catch {}
+        throw new Error(msg);
+    }
+    return res.json(); // MovieList; listImage içinde /uploads/covers/... döner
 }

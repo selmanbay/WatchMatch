@@ -1,9 +1,10 @@
-import React from "react";
+// src/components/Header.jsx
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
     headerStyle,
     navContainerStyle,
     logoStyle,
-    logoIconStyle
+    logoIconStyle,
 } from "../styles/ui";
 import AvatarMenu from "./nav/AvatarMenu";
 
@@ -17,28 +18,41 @@ export default function Header({
                                    suggestions = [],
                                    suggestionsLoading = false,
                                    onPickSuggestion,
-                                   onHome
+                                   onHome,
+                                   onType, // opsiyonel
                                }) {
+    const inputRef = useRef(null);
+
+    // ---- Yerel input state ----
+    const [localValue, setLocalValue] = useState(searchQuery || "");
+    const ignoreNextSyncRef = useRef(false); // öneri tıklamasından sonra 1 kez senkronu atla
+
+    // Parent dışarıdan bir değer dayarsa senkron tut (ama gerekirse atla)
+    useEffect(() => {
+        if (ignoreNextSyncRef.current) {
+            ignoreNextSyncRef.current = false;
+            return;
+        }
+        setLocalValue(searchQuery || "");
+    }, [searchQuery]);
+
+    const typeCb = useMemo(() => onType || setSearchQuery, [onType, setSearchQuery]);
+
     const goHome = () => {
         if (typeof onHome === "function") onHome();
         else window.location.href = "/";
     };
 
-    // sağ grup büyümesin
+    // sağ grup
     const rightGroupStyle = {
         display: "inline-flex",
         alignItems: "center",
         gap: 15,
         flex: "none",
-        whiteSpace: "nowrap"
+        whiteSpace: "nowrap",
     };
 
-    // arama kutusu sabit
-    const searchWrapStyle = {
-        position: "relative",
-        width: 260,
-        flex: "none"
-    };
+    const searchWrapStyle = { position: "relative", width: 260, flex: "none" };
 
     const panelStyle = {
         position: "absolute",
@@ -53,7 +67,7 @@ export default function Header({
         zIndex: 1100,
         overflow: "hidden",
         maxHeight: "60vh",
-        overflowY: "auto"
+        overflowY: "auto",
     };
 
     const rowStyle = {
@@ -63,7 +77,7 @@ export default function Header({
         gap: 10,
         padding: "10px 12px",
         cursor: "pointer",
-        color: "white"
+        color: "white",
     };
     const rowHover = { background: "rgba(255,255,255,0.05)" };
     const sourcePill = (src) => ({
@@ -74,13 +88,43 @@ export default function Header({
         opacity: 0.9,
         ...(src === "local"
             ? { color: "#60a5fa", borderColor: "rgba(96,165,250,0.4)" }
-            : { color: "#facc15", borderColor: "rgba(250,204,21,0.4)" })
+            : { color: "#facc15", borderColor: "rgba(250,204,21,0.4)" }),
     });
+
+    // ---- Handlers ----
+    const doSearch = () => {
+        const q = localValue.trim();
+        if (!q) return;
+        onSearch?.(q);
+        setLocalValue("");              // sadece yerel input temizle
+        setTimeout(() => inputRef.current?.blur(), 0);
+    };
+
+    const handleKeyDown = (e) => {
+        if (e.key === "Enter") {
+            e.preventDefault();
+            doSearch();
+        }
+    };
+
+    const handleClickSearch = () => doSearch();
+
+    const handlePick = (s) => {
+        onPickSuggestion?.(s);
+        // Tek seferlik: parent senkronunu atla ki eski query geri yazılmasın
+        ignoreNextSyncRef.current = true;
+        setLocalValue("");
+        // paneli kapat
+        setTimeout(() => inputRef.current?.blur(), 0);
+    };
+
+    const showPanel =
+        localValue.trim() !== "" && (suggestionsLoading || suggestions.length > 0);
 
     return (
         <header style={headerStyle}>
             <div style={navContainerStyle}>
-                {/* Sol: Logo -> Ana sayfa */}
+                {/* Sol: Logo */}
                 <button
                     onClick={goHome}
                     title="Ana sayfa"
@@ -91,7 +135,7 @@ export default function Header({
                         padding: 0,
                         margin: 0,
                         ...logoStyle,
-                        cursor: "pointer"
+                        cursor: "pointer",
                     }}
                 >
                     <div style={logoIconStyle}>WM</div>
@@ -102,11 +146,16 @@ export default function Header({
                 <div style={rightGroupStyle}>
                     <div style={searchWrapStyle}>
                         <input
+                            ref={inputRef}
                             type="text"
                             placeholder="Film ara..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            onKeyDown={(e) => e.key === "Enter" && onSearch?.()}
+                            value={localValue}
+                            onChange={(e) => {
+                                const v = e.target.value;
+                                setLocalValue(v);   // yerel input
+                                typeCb?.(v);        // parent’a metni ilet (öneriler için)
+                            }}
+                            onKeyDown={handleKeyDown}
                             style={{
                                 background: "rgba(255, 255, 255, 0.1)",
                                 border: "1px solid rgba(255, 255, 255, 0.2)",
@@ -117,11 +166,11 @@ export default function Header({
                                 width: "100%",
                                 boxSizing: "border-box",
                                 outline: "none",
-                                display: "block"
+                                display: "block",
                             }}
                         />
                         <button
-                            onClick={onSearch}
+                            onClick={handleClickSearch}
                             style={{
                                 position: "absolute",
                                 right: 12,
@@ -136,53 +185,73 @@ export default function Header({
                                 border: "none",
                                 color: "rgba(255, 255, 255, 0.7)",
                                 cursor: "pointer",
-                                padding: 0
+                                padding: 0,
                             }}
                             aria-label="Ara"
                         >
                             🔍
                         </button>
 
-                        {(searchQuery.trim() !== "") &&
-                            (suggestionsLoading || suggestions.length > 0) && (
-                                <div style={panelStyle}>
-                                    {suggestionsLoading && (
-                                        <div style={{ padding: 12, opacity: 0.8 }}>Aranıyor…</div>
-                                    )}
-                                    {!suggestionsLoading && suggestions.length === 0 && (
-                                        <div style={{ padding: 12, opacity: 0.8 }}>Sonuç yok</div>
-                                    )}
-                                    {!suggestionsLoading && suggestions.map((s, i) => (
+                        {showPanel && (
+                            <div style={panelStyle}>
+                                {suggestionsLoading && (
+                                    <div style={{ padding: 12, opacity: 0.8 }}>Aranıyor…</div>
+                                )}
+                                {!suggestionsLoading && suggestions.length === 0 && (
+                                    <div style={{ padding: 12, opacity: 0.8 }}>Sonuç yok</div>
+                                )}
+                                {!suggestionsLoading &&
+                                    suggestions.map((s, i) => (
                                         <div
                                             key={`${s.source}-${s.id ?? s.title}-${i}`}
-                                            onMouseDown={() => onPickSuggestion?.(s)}
+                                            onMouseDown={(e) => {
+                                                // blur’dan önce çalışsın ve fokus değişimini engellesin
+                                                e.preventDefault();
+                                                handlePick(s);
+                                            }}
                                             onMouseEnter={(e) =>
                                                 Object.assign(e.currentTarget.style, rowHover)
                                             }
                                             onMouseLeave={(e) =>
-                                                Object.assign(e.currentTarget.style, { background: "transparent" })
+                                                Object.assign(e.currentTarget.style, {
+                                                    background: "transparent",
+                                                })
                                             }
                                             style={rowStyle}
                                             role="option"
                                         >
-                                            <div style={{
-                                                width: 40, height: 60, borderRadius: 6,
-                                                overflow: "hidden", background: "rgba(255,255,255,0.08)",
-                                                border: "1px solid rgba(255,255,255,0.12)"
-                                            }}>
+                                            <div
+                                                style={{
+                                                    width: 40,
+                                                    height: 60,
+                                                    borderRadius: 6,
+                                                    overflow: "hidden",
+                                                    background: "rgba(255,255,255,0.08)",
+                                                    border: "1px solid rgba(255,255,255,0.12)",
+                                                }}
+                                            >
                                                 {s.poster ? (
                                                     <img
                                                         src={s.poster}
                                                         alt=""
-                                                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                                                        style={{
+                                                            width: "100%",
+                                                            height: "100%",
+                                                            objectFit: "cover",
+                                                        }}
                                                     />
                                                 ) : null}
                                             </div>
                                             <div style={{ minWidth: 0 }}>
-                                                <div style={{
-                                                    fontWeight: 700, lineHeight: 1.2,
-                                                    whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis"
-                                                }}>
+                                                <div
+                                                    style={{
+                                                        fontWeight: 700,
+                                                        lineHeight: 1.2,
+                                                        whiteSpace: "nowrap",
+                                                        overflow: "hidden",
+                                                        textOverflow: "ellipsis",
+                                                    }}
+                                                >
                                                     {s.title}
                                                 </div>
                                                 <div style={{ fontSize: 12, opacity: 0.8 }}>
@@ -194,8 +263,8 @@ export default function Header({
                                             </div>
                                         </div>
                                     ))}
-                                </div>
-                            )}
+                            </div>
+                        )}
                     </div>
 
                     {user && (
