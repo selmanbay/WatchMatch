@@ -17,7 +17,7 @@ public class MovieList {
     @Column(name = "list_name", nullable = false)
     private String listName; // Örn: Favorilerim
 
-    @Column(name = "list_description", nullable = false)
+    @Column(name = "list_description", nullable = true)
     private String listDescription;
 
     @Column(name = "list_image", nullable = false)

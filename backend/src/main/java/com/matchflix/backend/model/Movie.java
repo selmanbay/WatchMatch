@@ -6,6 +6,7 @@ import java.util.List;
 @Entity
 @Table(name = "movies")
 public class Movie {
+
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id")
     private Long id;
@@ -16,8 +17,16 @@ public class Movie {
     @Column(nullable = false) private String title;
     @Column(name = "release_year") private int releaseYear;
     @Column(name = "poster_url")   private String posterUrl;
+
     private double rating;
     @Column(columnDefinition = "text") private String description;
+
+    @ManyToMany(fetch = FetchType.LAZY,cascade = {CascadeType.MERGE})
+    @JoinTable(
+            name = "movie_genres",
+            joinColumns = @JoinColumn(name = "movie_id"),
+            inverseJoinColumns = @JoinColumn(name = "genre_id"))
+    private List<Genre> genres = new ArrayList<>();
 
     public List<Genre> getGenres() {
         return genres;
@@ -83,11 +92,4 @@ public class Movie {
         this.id = id;
     }
 
-    @ManyToMany(fetch = FetchType.LAZY)
-    @JoinTable(
-            name = "movie_genres",
-            joinColumns = @JoinColumn(name = "movie_id"),   // join tablosundaki kolon
-            inverseJoinColumns = @JoinColumn(name = "genre_id")
-    )
-    private List<Genre> genres = new ArrayList<>();
 }

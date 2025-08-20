@@ -13,6 +13,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -39,10 +41,10 @@ public class TmdbService {
 
     /** Basit DTO — import servisinde kullanacaksın. */
     public static class TmdbMovieDto {
-        private Long id;             // TMDb movie id
+        private Long id;
         private String title;
-        private String releaseDate;  // "YYYY-MM-DD"
-        private String posterPath;   // "/abc.jpg"
+        private String releaseDate;
+        private String posterPath;
         private double voteAverage;
         private String overview;
         private List<Long> genreIds;
@@ -64,7 +66,7 @@ public class TmdbService {
         public void setGenreIds(List<Long> genreIds) { this.genreIds = genreIds; }
     }
 
-    /** TMDb’den film detayını çek ve DTO döndür. */
+    /** Tek film detayını çeker */
     public TmdbMovieDto fetchMovie(Long tmdbId) {
         String url = String.format("%s/movie/%d?api_key=%s&language=en-US", baseUrl, tmdbId, apiKey);
         ResponseEntity<String> resp = rest.getForEntity(url, String.class);
@@ -83,13 +85,11 @@ public class TmdbService {
             dto.setOverview(root.path("overview").asText(null));
 
             List<Long> gids = new ArrayList<>();
-            // /movie/{id} -> "genres":[{id,name}]
             if (root.has("genres")) {
                 for (JsonNode g : root.get("genres")) {
                     if (g.has("id")) gids.add(g.get("id").asLong());
                 }
             }
-            // bazı list endpointlerinde "genre_ids":[1,2,...] gelebilir
             if (root.has("genre_ids")) {
                 for (JsonNode n : root.get("genre_ids")) {
                     gids.add(n.asLong());
@@ -104,11 +104,9 @@ public class TmdbService {
 
     /**
      * credits + keywords + overview tek seferde çekip features upsert eder.
-     * movie_features.movie_id = movies.id (MapsId)
      */
     @Transactional
     public void upsertFeatures(Movie movie, Long tmdbId) {
-        // append_to_response ile tek istek
         String url = String.format(
                 "%s/movie/%d?api_key=%s&language=en-US&append_to_response=credits,keywords",
                 baseUrl, tmdbId, apiKey
@@ -125,7 +123,7 @@ public class TmdbService {
             List<String> directorNames = new ArrayList<>();
             List<Long> directorIds = new ArrayList<>();
             for (JsonNode crew : root.path("credits").path("crew")) {
-                if ("Director".equals(crew.path("job").asText())) {
+                if ("Director".equalsIgnoreCase(crew.path("job").asText())) {
                     directorNames.add(crew.path("name").asText());
                     directorIds.add(crew.path("id").asLong());
                 }
@@ -143,24 +141,26 @@ public class TmdbService {
 
             // Keywords
             List<String> keywords = new ArrayList<>();
-            for (JsonNode kw : root.path("keywords").path("keywords")) {
-                keywords.add(kw.path("name").asText());
+            JsonNode kwNode = root.path("keywords").path("keywords");
+            if (kwNode.isMissingNode()) kwNode = root.path("keywords").path("results");
+            if (kwNode.isArray()) {
+                for (JsonNode kw : kwNode) {
+                    keywords.add(kw.path("name").asText());
+                }
             }
 
-            // Overview (detaydan)
             String overview = root.path("overview").asText(null);
 
-            // JSON string’lere çevir
+            // JSON string olarak sakla
             String dirNamesJson = om.writeValueAsString(directorNames);
             String dirIdsJson   = om.writeValueAsString(directorIds);
             String actNamesJson = om.writeValueAsString(actorNames);
             String actIdsJson   = om.writeValueAsString(actorIds);
             String keywordsJson = om.writeValueAsString(keywords);
 
-            // Upsert (MapsId: movie_id = movie.id)
             MovieFeatures mf = featuresRepo.findById(movie.getId()).orElseGet(() -> {
                 MovieFeatures x = new MovieFeatures();
-                x.setMovie(movie);   // PK’yi Movie’den alır
+                x.setMovie(movie);
                 return x;
             });
 
@@ -171,14 +171,14 @@ public class TmdbService {
             mf.setKeywords(keywords);
             mf.setOverview(overview);
 
-
             featuresRepo.save(mf);
+
         } catch (Exception e) {
             throw new IllegalStateException("TMDb parse failed (features)", e);
         }
     }
 
-    /* ---- Opsiyonel: ham JSON lazım olursa ---- */
+    /* ---- Popular & Search ---- */
 
     public String getPopularMovies() {
         String url = String.format("%s/movie/popular?api_key=%s&language=en-US&page=1", baseUrl, apiKey);
@@ -186,14 +186,15 @@ public class TmdbService {
     }
 
     public String searchMovies(String query) {
-        String url = String.format("%s/search/movie?api_key=%s&language=en-US&query=%s&page=1&include_adult=false",
+        String url = String.format(
+                "%s/search/movie?api_key=%s&language=en-US&query=%s&page=1&include_adult=false",
                 baseUrl, apiKey, encode(query));
         return rest.getForObject(url, String.class);
     }
 
     private String encode(String s) {
         try {
-            return java.net.URLEncoder.encode(s, java.nio.charset.StandardCharsets.UTF_8);
+            return URLEncoder.encode(s, StandardCharsets.UTF_8);
         } catch (Exception e) {
             return s;
         }
