@@ -43,7 +43,7 @@ public class MovieList {
     )
     private List<Movie> movies = new ArrayList<>();
 
-    @Column(name = "is_show",nullable = false)
+    @Column(name = "is_is_showshow",nullable = false)
     private boolean show = true;
 
     public ListType getListType() {

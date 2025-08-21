@@ -197,23 +197,23 @@ public class UserService {
         //LIKE--DISLIKE
 
         MovieList likelist = new MovieList();
-        watchlist.setListName("Like List");
-        watchlist.setListDescription("Begendiklerim");
-        watchlist.setListImage("default_watch.png");
-        watchlist.setListRating("0");
-        watchlist.setUser(user);
-        watchlist.setListType(MovieList.ListType.LIKE);
-        watchlist.setShow(false);
+        likelist.setListName("Like List");
+        likelist.setListDescription("Begendiklerim");
+        likelist.setListImage("default_watch.png");
+        likelist.setListRating("0");
+        likelist.setUser(user);
+        likelist.setListType(MovieList.ListType.LIKE);
+        likelist.setShow(false);
         movieListRepository.save(likelist);
 
         MovieList dislikelist = new MovieList();
-        watchlist.setListName("Dislike List");
-        watchlist.setListDescription("Begenmediklerim");
-        watchlist.setListImage("default_watch.png");
-        watchlist.setListRating("0");
-        watchlist.setUser(user);
-        watchlist.setListType(MovieList.ListType.DISLIKE);
-        watchlist.setShow(false);
+        dislikelist.setListName("Dislike List");
+        dislikelist.setListDescription("Begenmediklerim");
+        dislikelist.setListImage("default_watch.png");
+        dislikelist.setListRating("0");
+        dislikelist.setUser(user);
+        dislikelist.setListType(MovieList.ListType.DISLIKE);
+        dislikelist.setShow(false);
         movieListRepository.save(dislikelist);
     }
 }
