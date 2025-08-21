@@ -2,7 +2,7 @@ package com.matchflix.backend.helper;
 
 public class ListTypeResolver {
 
-    public enum ListType { WATCHED, WISHLIST, OTHER }
+    public enum ListType { WATCHED, WISHLIST, OTHER,LIKE,DISLIKE }
 
     public static ListType resolve(String listName) {
         if (listName == null) return ListType.OTHER;

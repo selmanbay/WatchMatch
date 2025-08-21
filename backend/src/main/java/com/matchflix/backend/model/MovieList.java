@@ -11,6 +11,8 @@ import com.matchflix.backend.helper.ListTypeResolver;
 )
 public class MovieList {
 
+    public enum ListType { WATCHED, WISHLIST, OTHER,LIKE,DISLIKE }
+
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
@@ -41,8 +43,8 @@ public class MovieList {
     )
     private List<Movie> movies = new ArrayList<>();
 
-
-    public enum ListType { WATCHED, WISHLIST, OTHER }
+    @Column(name = "is_show",nullable = false)
+    private boolean show = true;
 
     public ListType getListType() {
         return listType;
@@ -58,12 +60,16 @@ public class MovieList {
 
     // getters/setters
     public Long getId() { return id; }
+
     public String getListName() { return listName; }
     public void setListName(String listName) { this.listName = listName; }
+
     public String getListDescription() { return listDescription; }
     public void setListDescription(String listDescription) { this.listDescription = listDescription; }
+
     public String getListImage() { return listImage; }
     public void setListImage(String listImage) { this.listImage = listImage; }
+
     public String getListRating() { return listRating; }
     public void setListRating(String listRating) { this.listRating = listRating; }
 
@@ -72,4 +78,12 @@ public class MovieList {
 
     public List<Movie> getMovies() { return movies; }
     public void setMovies(List<Movie> movies) { this.movies = movies; }
+
+    public boolean isShow() {
+        return show;
+    }
+
+    public void setShow(boolean show) {
+        this.show = show;
+    }
 }

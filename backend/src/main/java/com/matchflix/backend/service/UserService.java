@@ -1,5 +1,4 @@
 package com.matchflix.backend.service;
-
 import com.matchflix.backend.dto.RegisterRequest;
 import com.matchflix.backend.model.Country;
 import com.matchflix.backend.model.MovieList;
@@ -186,7 +185,6 @@ public class UserService {
         watchlist.setUser(user);
         watchlist.setListType(MovieList.ListType.WATCHED);
         movieListRepository.save(watchlist);
-
         // Wishlist
         MovieList wishlist = new MovieList();
         wishlist.setListName("My Wishlist");
@@ -196,5 +194,26 @@ public class UserService {
         wishlist.setUser(user);
         wishlist.setListType(MovieList.ListType.WISHLIST);
         movieListRepository.save(wishlist);
+        //LIKE--DISLIKE
+
+        MovieList likelist = new MovieList();
+        watchlist.setListName("Like List");
+        watchlist.setListDescription("Begendiklerim");
+        watchlist.setListImage("default_watch.png");
+        watchlist.setListRating("0");
+        watchlist.setUser(user);
+        watchlist.setListType(MovieList.ListType.LIKE);
+        watchlist.setShow(false);
+        movieListRepository.save(likelist);
+
+        MovieList dislikelist = new MovieList();
+        watchlist.setListName("Dislike List");
+        watchlist.setListDescription("Begenmediklerim");
+        watchlist.setListImage("default_watch.png");
+        watchlist.setListRating("0");
+        watchlist.setUser(user);
+        watchlist.setListType(MovieList.ListType.DISLIKE);
+        watchlist.setShow(false);
+        movieListRepository.save(dislikelist);
     }
 }
