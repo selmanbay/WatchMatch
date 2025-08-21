@@ -4,9 +4,38 @@ import { Camera, Upload, ArrowLeft, Film, Heart, Eye, Edit3 } from "lucide-react
 import { uploadListCover } from "../api/movieLists";
 import { pickPoster } from "../utils/images";
 
-const API = process.env.REACT_APP_API_BASE || "http://localhost:8080";
+const API  = process.env.REACT_APP_API_BASE || "http://localhost:8080";
+const TMDB = "https://image.tmdb.org/t/p/w342";
+
+// /uploads/... mutlaklaştır
 const toAbs = (url) =>
     url && typeof url === "string" && url.startsWith("/uploads/") ? `${API}${url}` : url;
+
+// Her türlü poster/kapak yolunu mutlak görsel URL’ine çevir
+function resolvePosterUrl(p) {
+    if (!p) return null;
+    const s = String(p);
+    if (s.startsWith("http://") || s.startsWith("https://")) return s;
+    if (s.startsWith("/uploads/")) return `${API}${s}`;
+    if (s.startsWith("/")) return `${TMDB}${s}`; // TMDB poster_path gibi
+    return s;
+}
+
+// Film objesini normalize et (title/year + posterResolved)
+function normalizeMovie(m = {}) {
+    const posterCand =
+        m.poster || m.posterUrl || m.image || m.cover || m.coverUrl || m.poster_path;
+
+    const title =
+        m.title || m.name || m.original_title || m.original_name || "Untitled";
+
+    const year =
+        m.releaseYear ||
+        (m.release_date ? String(m.release_date).slice(0, 4) : "") ||
+        (m.first_air_date ? String(m.first_air_date).slice(0, 4) : "");
+
+    return { ...m, title, year, posterResolved: resolvePosterUrl(posterCand) };
+}
 
 /* ---------------- Ortak buton ---------------- */
 function ModernButton({
@@ -96,14 +125,7 @@ function StatCard({ icon: Icon, label, value, gradient = "#3b82f6, #1d4ed8" }) {
     return (
         <div style={cardStyle}>
             <div style={iconContainerStyle}>{Icon ? <Icon size={28} color="white" /> : null}</div>
-            <div
-                style={{
-                    fontSize: "32px",
-                    fontWeight: "bold",
-                    color: "white",
-                    marginBottom: "8px",
-                }}
-            >
+            <div style={{ fontSize: "32px", fontWeight: "bold", color: "white", marginBottom: "8px" }}>
                 {value}
             </div>
             <div style={{ fontSize: "14px", color: "#9ca3af" }}>{label}</div>
@@ -154,10 +176,7 @@ function AlbumCard({ album, onOpen, onUploadCover }) {
 
     return (
         <div
-            style={{
-                ...cardStyle,
-                transform: isHovered ? "scale(1.05)" : "scale(1)",
-            }}
+            style={{ ...cardStyle, transform: isHovered ? "scale(1.05)" : "scale(1)" }}
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
             onClick={() => onOpen?.(album)}
@@ -178,7 +197,6 @@ function AlbumCard({ album, onOpen, onUploadCover }) {
             )}
 
             <div style={overlayStyle} />
-
             <div style={hoverOverlayStyle}>
                 <div style={{ textAlign: "center", color: "white" }}>
                     <Eye size={32} style={{ margin: "0 auto 8px" }} />
@@ -278,9 +296,17 @@ function MovieCard({ movie }) {
         transition: "opacity 0.3s ease",
     };
 
-    const poster = movie?.poster ||
-        movie?.posterUrl ||
-        (movie?.poster_path ? `https://image.tmdb.org/t/p/w300${movie.poster_path}` : null);
+    // ProfilePage -> normalizeMovie ile eklenir
+    const poster =
+        movie?.posterResolved ??
+        resolvePosterUrl(
+            movie?.poster ||
+            movie?.posterUrl ||
+            movie?.image ||
+            movie?.cover ||
+            movie?.coverUrl ||
+            movie?.poster_path
+        );
 
     return (
         <div
@@ -299,6 +325,9 @@ function MovieCard({ movie }) {
                         objectFit: "cover",
                         transform: isHovered ? "scale(1.05)" : "scale(1)",
                         transition: "transform 0.3s ease",
+                    }}
+                    onError={(e) => {
+                        e.currentTarget.style.display = "none";
                     }}
                 />
             ) : (
@@ -328,7 +357,9 @@ function MovieCard({ movie }) {
                         color: "#d1d5db",
                     }}
                 >
-                    <span>{movie?.year || (movie?.releaseYear ?? (movie?.release_date || "")?.slice(0, 4))}</span>
+          <span>
+            {movie?.year || (movie?.releaseYear ?? (movie?.release_date || "")?.slice(0, 4))}
+          </span>
                 </div>
             </div>
         </div>
@@ -403,7 +434,7 @@ export default function ProfilePage({ user: initialUser, userId }) {
                 const data = await res.json();
                 const normalized = (Array.isArray(data) ? data : []).map((l) => ({
                     ...l,
-                    image: toAbs(l.image || l.listImage || l.cover || l.coverUrl),
+                    image: resolvePosterUrl(toAbs(l.image || l.listImage || l.cover || l.coverUrl)),
                     title: l.listName || l.name || "Liste",
                     count: l.movieCount ?? (l.movies?.length ?? 0),
                     subtitle: l.listType || "Kullanıcı Listesi",
@@ -423,6 +454,59 @@ export default function ProfilePage({ user: initialUser, userId }) {
         return () => ac.abort();
     }, [userId]);
 
+    /* ----- Kapak tamamlama: kapaksız listelere ilk filmin posterini kapak yap ----- */
+    useEffect(() => {
+        if (!userId) return;
+
+        // sadece kapak OLMAYAN ve film sayısı > 0 olanlar
+        const targets = (listsMeta || []).filter(
+            (l) =>
+                !(l.image || l.listImage || l.cover || l.coverUrl) &&
+                ((Number(l.count) || 0) > 0)
+        );
+        if (targets.length === 0) return;
+
+        const ac = new AbortController();
+        (async () => {
+            try {
+                const results = await Promise.all(
+                    targets.map(async (l) => {
+                        const id = l.id ?? l.listId;
+                        try {
+                            const r = await fetch(`${API}/api/movie-lists/${id}`, { signal: ac.signal });
+                            if (!r.ok) return null;
+                            const detail = await r.json();
+                            const movies = detail?.movies || [];
+                            const cover =
+                                detail?.image ||
+                                detail?.listImage ||
+                                detail?.cover ||
+                                detail?.coverUrl ||
+                                pickPoster(movies[0]); // ⬅️ ilk filmin posteri
+                            const resolved = resolvePosterUrl(toAbs(cover));
+                            return resolved ? { id, cover: resolved } : null;
+                        } catch {
+                            return null;
+                        }
+                    })
+                );
+
+                const map = new Map(results.filter(Boolean).map((x) => [String(x.id), x.cover]));
+                setListsMeta((prev) =>
+                    (prev || []).map((l) => {
+                        const id = l.id ?? l.listId;
+                        const cv = map.get(String(id));
+                        return cv ? { ...l, image: cv } : l;
+                    })
+                );
+            } catch (e) {
+                console.warn("Kapak tamamlama sırasında hata:", e);
+            }
+        })();
+
+        return () => ac.abort();
+    }, [userId, listsMeta]);
+
     /* ----- Albüm aç ----- */
     const openAlbum = async (album) => {
         if (!album?.id) return;
@@ -432,17 +516,18 @@ export default function ProfilePage({ user: initialUser, userId }) {
             const res = await fetch(`${API}/api/movie-lists/${album.id}`, { signal: ac.signal });
             if (!res.ok) throw new Error("Liste detayı alınamadı");
             const detail = await res.json();
-            const movies = detail?.movies || [];
+
+            const moviesRaw = detail?.movies || [];
+            const movies = moviesRaw.map(normalizeMovie);
+
+            // kapak: önce detay alanları, yoksa ilk filmin posteri
+            const coverCand =
+                detail?.image || detail?.listImage || detail?.cover || detail?.coverUrl || pickPoster(moviesRaw[0]);
+            const image = resolvePosterUrl(toAbs(album.image || coverCand));
+
             setSelectedAlbum({
                 ...album,
-                image: toAbs(
-                    album.image ||
-                    detail?.image ||
-                    detail?.listImage ||
-                    detail?.cover ||
-                    detail?.coverUrl ||
-                    pickPoster(movies[0])
-                ),
+                image,
                 movies,
             });
         } catch (e) {
@@ -467,7 +552,7 @@ export default function ProfilePage({ user: initialUser, userId }) {
         if (!file || !listId) return;
         try {
             const res = await uploadListCover(listId, file);
-            const newUrl = toAbs(res?.listImage || res?.image || res?.cover || res?.url);
+            const newUrl = resolvePosterUrl(toAbs(res?.listImage || res?.image || res?.cover || res?.url));
             if (newUrl) {
                 setListsMeta((prev) =>
                     (prev || []).map((l) => (String(l.id) === String(listId) ? { ...l, image: newUrl } : l))
@@ -520,7 +605,7 @@ export default function ProfilePage({ user: initialUser, userId }) {
     const albums = useMemo(() => {
         // İstiyorsan sistem listelerini gizlemek için burada filtre uygulayabilirsin.
         // Şimdilik TÜM listeleri gösteriyoruz.
-        return (listsMeta || []);
+        return listsMeta || [];
     }, [listsMeta]);
 
     const totalMovies = useMemo(
@@ -539,11 +624,10 @@ export default function ProfilePage({ user: initialUser, userId }) {
     /* ----- Stiller ----- */
     const containerStyle = {
         minHeight: "100vh",
-        paddingTop: NAV_SAFE_OFFSET,
+        paddingTop: NAV_SAFE_OFFSET, // header alta taşma fix
         background: "linear-gradient(135deg, #1f2937 0%, #374151 50%, #1f2937 100%)",
         position: "relative",
     };
-
 
     const patternStyle = {
         position: "absolute",

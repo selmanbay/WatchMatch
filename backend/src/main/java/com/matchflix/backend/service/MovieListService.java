@@ -1,3 +1,4 @@
+// src/main/java/com/matchflix/backend/service/MovieListService.java
 package com.matchflix.backend.service;
 
 import com.matchflix.backend.model.Movie;
@@ -90,5 +91,19 @@ public class MovieListService {
     public MovieList getListWithMovies(Long listId) {
         return listRepo.findByIdWithMovies(listId)
                 .orElseThrow(() -> new RuntimeException("Liste bulunamadı: " + listId));
+    }
+
+    /* ===================== YENİ: Kapak URL güncelle ===================== */
+
+    /**
+     * Listenin kapak görselini günceller.
+     * Entity alan adın farklıysa (image/cover/coverUrl) setteri buna göre değiştir.
+     */
+    @Transactional
+    public MovieList updateCoverUrl(Long listId, String url) {
+        MovieList list = listRepo.findById(listId)
+                .orElseThrow(() -> new RuntimeException("Liste bulunamadı: " + listId));
+        list.setListImage(url); // <- alanın adı farklıysa burada değiştir
+        return listRepo.save(list);
     }
 }

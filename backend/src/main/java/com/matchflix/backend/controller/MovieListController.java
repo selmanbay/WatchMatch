@@ -9,11 +9,18 @@ import com.matchflix.backend.repository.UserRepository;
 import com.matchflix.backend.service.MovieImportService;
 import com.matchflix.backend.service.MovieListService;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.Map;
 
@@ -26,21 +33,21 @@ public class MovieListController {
     private final MovieRepository movieRepo;
     private final UserRepository userRepo;
     private final MovieListService movieListService;
-    private final MovieImportService movieImportService; // <-- eklendi
+    private final MovieImportService movieImportService;
 
     public MovieListController(MovieListRepository movieListRepo,
                                MovieRepository movieRepo,
                                UserRepository userRepo,
                                MovieListService movieListService,
-                               MovieImportService movieImportService) { // <-- eklendi
+                               MovieImportService movieImportService) {
         this.movieListRepo = movieListRepo;
         this.movieRepo = movieRepo;
         this.userRepo = userRepo;
         this.movieListService = movieListService;
-        this.movieImportService = movieImportService; // <-- eklendi
+        this.movieImportService = movieImportService;
     }
 
-    // Tek liste (filmleriyle birlikte servis üzerinden)
+    // Tek liste (servisten filmleriyle)
     @GetMapping("/{listId}")
     public ResponseEntity<?> getList(@PathVariable Long listId) {
         try {
@@ -50,13 +57,13 @@ public class MovieListController {
         }
     }
 
-    // Kullanıcının tüm listeleri
+    // Kullanıcının listeleri
     @GetMapping("/user/{userId}")
     public List<MovieList> getListsOfUser(@PathVariable Long userId) {
         return movieListRepo.findByUser_Id(userId);
     }
 
-    // Yeni liste oluştur (entity tarzı body)
+    // Yeni liste
     @PostMapping
     public ResponseEntity<?> addMovieList(@RequestBody MovieList body) {
         try {
@@ -71,7 +78,7 @@ public class MovieListController {
             ml.setUser(owner);
             ml.setListName(body.getListName());
             ml.setListDescription(body.getListDescription());
-            ml.setListImage(body.getListImage());
+            ml.setListImage(body.getListImage());       // ← kapak alanı
             ml.setListRating(body.getListRating());
             ml.setListType(MovieList.ListType.OTHER);
 
@@ -115,22 +122,18 @@ public class MovieListController {
         }
     }
 
-    // TMDb id ile ekle: Movie + movie_features garanti, sonra listeye iliştir
+    // TMDb id ile ekle
     @PostMapping("/{listId}/tmdb/{tmdbId}")
     @Transactional
     public ResponseEntity<?> addByTmdbId(@PathVariable Long listId, @PathVariable Long tmdbId) {
         try {
-            // 1) Liste var mı?
             movieListRepo.findById(listId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Liste bulunamadı: " + listId));
 
-            // 2) Filmi ve FEATURES'ı garanti et (insert/update)
             Movie movie = movieImportService.ensureMovieAndFeaturesByTmdbId(tmdbId);
 
-            // 3) Listeye ekle (mevcut servisle)
             MovieList updated = movieListService.addMovieToList(listId, movie.getId());
 
-            // 4) Basit bir özet döndür (istersen updated'i döndürmeye devam edebilirsin)
             return ResponseEntity.ok(Map.of(
                     "list_id", updated.getId(),
                     "movie_id", movie.getId(),
@@ -141,6 +144,64 @@ public class MovieListController {
             throw e;
         } catch (Exception e) {
             return ResponseEntity.badRequest().body("TMDb üzerinden ekleme başarısız: " + e.getMessage());
+        }
+    }
+
+    /* ================== YENİ: Kapak yükleme / güncelleme ================== */
+
+    // Multipart upload (input name="file")
+    @PostMapping(path = "/{listId}/cover", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> uploadCover(@PathVariable Long listId,
+                                         @RequestParam("file") MultipartFile file) {
+        try {
+            if (file == null || file.isEmpty()) {
+                return ResponseEntity.badRequest().body("Dosya yüklenmedi.");
+            }
+            if (file.getContentType() == null || !file.getContentType().startsWith("image/")) {
+                return ResponseEntity.badRequest().body("Sadece resim dosyaları kabul edilir.");
+            }
+
+            Path dir = Paths.get("uploads", "list-covers");
+            Files.createDirectories(dir);
+
+            String ext = StringUtils.getFilenameExtension(file.getOriginalFilename());
+            if (ext == null || ext.isBlank()) ext = "jpg";
+            String fileName = "l" + listId + "_" + System.currentTimeMillis() + "." + ext.toLowerCase();
+
+            Path target = dir.resolve(fileName);
+            Files.copy(file.getInputStream(), target, StandardCopyOption.REPLACE_EXISTING);
+
+            String publicUrl = "/uploads/list-covers/" + fileName;
+
+            MovieList updated = movieListService.updateCoverUrl(listId, publicUrl);
+
+            return ResponseEntity.ok(Map.of(
+                    "id", updated.getId(),
+                    "listImage", publicUrl, // frontend "listImage" veya "image" okuyabiliyor
+                    "image", publicUrl
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Kapak upload başarısız: " + e.getMessage());
+        }
+    }
+
+    // URL vererek kapak set etme (opsiyonel)
+    @PatchMapping(path = "/{listId}/cover", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<?> setCoverUrl(@PathVariable Long listId,
+                                         @RequestBody Map<String, String> body) {
+        try {
+            String url = body.get("url");
+            if (url == null || url.isBlank()) {
+                return ResponseEntity.badRequest().body("url boş olamaz.");
+            }
+            MovieList updated = movieListService.updateCoverUrl(listId, url);
+            return ResponseEntity.ok(Map.of(
+                    "id", updated.getId(),
+                    "listImage", url,
+                    "image", url
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Kapak güncellenemedi: " + e.getMessage());
         }
     }
 }
