@@ -13,4 +13,15 @@ public interface MovieListRepository extends JpaRepository<MovieList, Long> {
     boolean existsByIdAndMovies_TmdbId(Long listId, Long tmdbId);
     @Query("select ml from MovieList ml left join fetch ml.movies where ml.id = :id")
     Optional<MovieList> findByIdWithMovies(@Param("id") Long id);
+    interface SeedProjection {
+        Long getTmdbId();
+    }
+
+    @Query("""
+        select m.tmdbId as tmdbId, ml.listType as listType
+        from MovieList ml
+        join ml.movies m
+        where ml.user.id = :userId
+    """)
+    List<SeedProjection> findUserSeedMovies(@Param("userId") Long userId);
 }
