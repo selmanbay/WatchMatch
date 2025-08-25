@@ -67,7 +67,7 @@ export const sectionHeaderStyle = {
     marginBottom: "30px"
 };
 
-export const sectionTitleStyle = {
+export const  sectionTitleStyle = {
     fontSize: "2rem",
     fontWeight: "bold",
     color: "white",

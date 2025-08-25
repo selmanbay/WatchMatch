@@ -1,5 +1,5 @@
 // src/App.js
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Header from "./components/Header";
 import AuthForm from "./components/AuthForm";
 import MovieGrid from "./components/MovieGrid";
@@ -39,7 +39,7 @@ function getBackdropImage(item) {
     return backdropPath;
 }
 
-// TMDB controller farklı şekillerde cevap verebilir: [] | {results:[]} | {content:[]} | {items:[]}
+// TMDB controller farklı şekillerde cevap verebilir
 function extractMovies(payload) {
     if (!payload) return [];
     if (Array.isArray(payload)) return payload;
@@ -51,7 +51,7 @@ function extractMovies(payload) {
     return [];
 }
 
-/* - Anasayfada göstereceğimiz kategoriler (TMDB genre IDs) - */
+/* - Anasayfada göstereceğimiz kategoriler - */
 const GENRES = [
     { id: 28, name: "Aksiyon" },
     { id: 12, name: "Macera" },
@@ -63,7 +63,6 @@ const GENRES = [
     { id: 10749, name: "Romantik" }
 ];
 
-// Bir film objesi şunu içeriyor mu? (genre id)
 function hasGenre(row, gid) {
     if (!row) return false;
     const ids =
@@ -75,7 +74,6 @@ function hasGenre(row, gid) {
     return Array.isArray(ids) && ids.includes(gid);
 }
 
-// Dönüşen filmlerde tekrarları temizle (id varsa id’ye göre)
 function uniqById(list) {
     const seen = new Set();
     const out = [];
@@ -89,7 +87,6 @@ function uniqById(list) {
     return out;
 }
 
-// Backend’te farklı rotalar olabilir; sırayla dene, ilk dolu cevabı kullan.
 async function fetchGenreWithFallbacks(genreId, page, signal) {
     const candidates = [
         `http://localhost:8080/api/tmdb/genre/${genreId}?page=${page}`,
@@ -155,8 +152,9 @@ function App() {
         GENRES.map((g) => ({ ...g, items: [], loading: false, error: null }))
     );
 
+    const bootHandledRef = useRef(false);
+
     /* ---------------- History entegrasyonu ---------------- */
-    // Uygulama açılışında mevcut entry'yi "home" olarak işaretle
     useEffect(() => {
         try {
             window.history.replaceState(
@@ -167,14 +165,12 @@ function App() {
         } catch {}
     }, []);
 
-    // Geri tuşu davranışı
     useEffect(() => {
         const onPop = (e) => {
             const v = e.state?.view;
             if (v === "profile") {
                 setView("profile");
             } else {
-                // default: ana sayfaya dön
                 setView("home");
                 setIsSearching(false);
                 setSearchResults([]);
@@ -185,7 +181,6 @@ function App() {
         return () => window.removeEventListener("popstate", onPop);
     }, []);
 
-    // Yardımcılar: profile/home navigasyonu
     const goToProfile = () => {
         setView("profile");
         try {
@@ -194,14 +189,12 @@ function App() {
     };
 
     const goToHome = () => {
-        // profilden geliyorsak normal back ile pop edelim
         if (window.history.state?.view === "profile" || view === "profile") {
             try {
                 window.history.back();
                 return;
             } catch {}
         }
-        // aksi halde state'i home yap
         setIsSearching(false);
         setSearchResults([]);
         setSearchQuery("");
@@ -265,7 +258,7 @@ function App() {
             });
     }, [user]);
 
-    // Kategori satırlarını çek (her kategoriye farklı sayfa ile, fallback’li)
+    // Kategori satırlarını çek
     useEffect(() => {
         if (user === null) return;
 
@@ -310,7 +303,7 @@ function App() {
         return () => controller.abort();
     }, [user]);
 
-    // Öneriler: yazdıkça local + TMDB film + TMDB kişi (debounce + abort)
+    // Öneriler
     useEffect(() => {
         const q = searchQuery.trim();
         if (!q) {
@@ -324,7 +317,6 @@ function App() {
 
         setSuggestionsLoading(true);
 
-        // Local film eşleşmeleri (ilk 5)
         const ql = q.toLowerCase();
         const local = (movies || [])
             .filter((m) => (m?.title || "").toLowerCase().includes(ql))
@@ -360,7 +352,7 @@ function App() {
                         raw: r
                     }));
 
-                // TMDB kişi araması (oyuncu/yönetmen)
+                // TMDB kişi araması
                 const personCandidates = [
                     `http://localhost:8080/api/tmdb/search/person?query=${encodeURIComponent(q)}`,
                     `http://localhost:8080/api/tmdb/person/search?query=${encodeURIComponent(q)}`
@@ -381,7 +373,7 @@ function App() {
                     return {
                         id: p.id,
                         title: p.name,
-                        year: trDept, // Header öneri satırında ikinci satır olarak gösterilecek
+                        year: trDept,
                         poster: p.profile_path ? `https://image.tmdb.org/t/p/w185${p.profile_path}` : null,
                         source: "tmdb",
                         kind: "person",
@@ -403,27 +395,118 @@ function App() {
         };
     }, [searchQuery, movies]);
 
-    // Aramayı çalıştır
+    // --- Aramayı çalıştır (çoklu fallback + alertsiz) ---
     const runSearch = async (q) => {
         const query = (q ?? searchQuery ?? "").trim();
         if (!query) return;
+
         setIsSearching(true);
         setSearchLoading(true);
-        try {
-            const res = await fetch(
-                `http://localhost:8080/api/tmdb/search?query=${encodeURIComponent(query)}`
-            );
-            const data = await res.json();
-            setSearchResults(extractMovies(data));
-        } catch {
-            alert("❌ Arama başarısız oldu!");
-        } finally {
-            setSearchLoading(false);
-            window.scrollTo({ top: 0, behavior: "smooth" });
+
+        // Backend’inde farklı isimli endpoint’ler olabilir → sırayla dene
+        const qs = encodeURIComponent(query);
+        const candidates = [
+            // Standartlar
+            `http://localhost:8080/api/tmdb/search?query=${qs}`,
+            `http://localhost:8080/api/tmdb/search/movie?query=${qs}`,
+            `http://localhost:8080/api/tmdb/movie/search?query=${qs}`,
+            `http://localhost:8080/api/tmdb/search/multi?query=${qs}`,
+            `http://localhost:8080/api/tmdb/multi/search?query=${qs}`,
+            `http://localhost:8080/api/tmdb/searchAll?query=${qs}`,
+            `http://localhost:8080/api/tmdb/movies/search?query=${qs}`,
+            // Bazı controller’lar q paramı bekler
+            `http://localhost:8080/api/tmdb/search?q=${qs}`,
+            `http://localhost:8080/api/tmdb/movie/search?q=${qs}`,
+            `http://localhost:8080/api/tmdb/search/multi?q=${qs}`,
+            // SON ÇARE: popular çek → client’ta filtrele
+            `http://localhost:8080/api/tmdb/popular`
+        ];
+
+        let used = null;
+        let result = [];
+        for (let i = 0; i < candidates.length; i++) {
+            const url = candidates[i];
+            try {
+                const res = await fetch(url);
+                if (!res.ok) continue;
+
+                const data = await res.json();
+
+                if (url.endsWith("/popular")) {
+                    // popülerden client-side filtre
+                    const all = extractMovies(data);
+                    const ql = query.toLowerCase();
+                    result = all.filter(
+                        (m) =>
+                            (m.title || m.name || "")
+                                .toLowerCase()
+                                .includes(ql)
+                    );
+                } else {
+                    result = extractMovies(data);
+                }
+
+                if (Array.isArray(result)) {
+                    used = url;
+                    // Popüler fallback’te de boş olabilir; yine de kabul edelim (alert yok)
+                    break;
+                }
+            } catch (e) {
+                // denemeye devam
+            }
         }
+
+        if (!used) {
+            console.warn("🔎 Arama için uygun endpoint bulunamadı / cevap boş geldi.");
+            setSearchResults([]);
+        } else {
+            setSearchResults(result || []);
+        }
+
+        setSearchLoading(false);
+        window.scrollTo({ top: 0, behavior: "smooth" });
     };
 
-    // Bir kişiye göre film ara (cast/crew → yönetmen & oynadığı filmler)
+    // --- Uygulama açılışında pending/URL q kontrolü ---
+    useEffect(() => {
+        if (bootHandledRef.current) return;
+        bootHandledRef.current = true;
+
+        try {
+            // 1) Header'ın bıraktığı pending URL varsa ona git
+            const pending = localStorage.getItem("wm_pending_search_url");
+            if (pending) {
+                localStorage.removeItem("wm_pending_search_url");
+                window.location.assign(pending);
+                return; // yönleniyoruz
+            }
+        } catch {}
+
+        // 2) Sayfa URL'inde q varsa otomatik arama
+        try {
+            const url = new URL(window.location.href);
+            let q = url.searchParams.get("q");
+
+            if (!q) {
+                // Hash modunda '#/search?q=...' gibi olabilir
+                const hash = url.hash || "";
+                const qIndex = hash.indexOf("?");
+                if (qIndex !== -1) {
+                    const sp = new URLSearchParams(hash.slice(qIndex + 1));
+                    q = sp.get("q");
+                }
+            }
+
+            if (q && q.trim()) {
+                setView("home");
+                setSearchQuery(q);
+                // Aynı tikte aramayı tetikle
+                setTimeout(() => runSearch(q), 0);
+            }
+        } catch {}
+    }, []);
+
+    // --- Kişiye göre arama ---
     const runSearchByPerson = async (personId, personName) => {
         if (!personId) return;
         setIsSearching(true);
@@ -455,24 +538,80 @@ function App() {
             const list = Array.from(map.values());
             setSearchResults(list);
             if (personName) setSearchQuery(personName);
-        } catch {
-            alert("❌ Kişi film bilgileri alınamadı!");
+        } catch (e) {
+            console.warn("❌ Kişi film bilgileri alınamadı!", e);
+            setSearchResults([]);
         } finally {
             setSearchLoading(false);
             window.scrollTo({ top: 0, behavior: "smooth" });
         }
     };
 
-    const handleSearch = () => runSearch(searchQuery);
+    const handleSearch = (qFromHeader) => {
+        const query = (qFromHeader ?? searchQuery ?? "").trim();
+        if (!query) return;
+
+        const inProfile = view === "profile" || window.location.hash === "#profile";
+
+        if (inProfile) {
+            // 1) Profile'deysek önce Home görünümü
+            setView("home");
+            try {
+                window.history.replaceState(
+                    { view: "home" },
+                    "",
+                    window.location.pathname + window.location.search
+                );
+            } catch {}
+
+            // 2) Aynı tikte aramayı çalıştır ve parent inputunu temizle
+            setTimeout(() => {
+                runSearch(query);
+                setSearchQuery("");   // ✅ Enter’dan sonra input sıfırlansın
+            }, 0);
+            return;
+        }
+
+        // Home'daysak direkt ara ve sonra temizle
+        runSearch(query);
+        setSearchQuery("");       // ✅ Enter’dan sonra input sıfırlansın
+    };
+
 
     const handlePickSuggestion = async (sugg) => {
         if (!sugg) return;
+
+        const inProfile = view === "profile" || window.location.hash === "#profile";
+        if (inProfile) {
+            // Home'a al ve aynı tikte ilgili aramayı çalıştır
+            setView("home");
+            try {
+                window.history.replaceState(
+                    { view: "home" },
+                    "",
+                    window.location.pathname + window.location.search
+                );
+            } catch {}
+
+            setTimeout(() => {
+                if (sugg.kind === "person") {
+                    runSearchByPerson(sugg.id, sugg.title);
+                } else {
+                    const q = sugg.title || "";
+                    setSearchQuery(q);
+                    runSearch(q);
+                }
+            }, 0);
+            return;
+        }
+
         if (sugg.kind === "person") {
             await runSearchByPerson(sugg.id, sugg.title);
             return;
         }
-        setSearchQuery(sugg.title || "");
-        await runSearch(sugg.title || "");
+        const q = sugg.title || "";
+        setSearchQuery(q);
+        await runSearch(q);
     };
 
     // Kart tıklanınca hero görselini güncelle
@@ -548,7 +687,6 @@ function App() {
         );
     }
 
-    // Hero arka planını düzgün katmanlarla kur
     const heroBackgroundImage = lastClickedFilm ? getBackdropImage(lastClickedFilm) : null;
     const heroBgStyle = heroBackgroundImage
         ? {
@@ -629,7 +767,7 @@ function App() {
                                 marginBottom: "60px",
                                 borderRadius: "15px",
                                 overflow: "hidden",
-                                ...heroBgStyle // 🔥 görsel tam doldurur, tekrar etmez
+                                ...heroBgStyle
                             }}
                         >
                             <div style={{ maxWidth: "600px", padding: "40px", zIndex: 2 }}>
@@ -780,35 +918,6 @@ function App() {
                             )}
                         </section>
 
-                        {/* İstek Listesi */}
-                        <section>
-                            <div style={sectionHeaderStyle}>
-                                <h2 style={sectionTitleStyle}>💡 İstek Listem</h2>
-                            </div>
-                            <MovieGrid
-                                items={wishlist}
-                                emptyText="Liste boş"
-                                onAddWishlist={() => {}}
-                                onAddWatched={() => {}}
-                                userId={userId}
-                                onMovieClick={handleMovieClick}
-                            />
-                        </section>
-
-                        {/* İzlediklerim */}
-                        <section>
-                            <div style={sectionHeaderStyle}>
-                                <h2 style={sectionTitleStyle}>✅ İzlediklerim</h2>
-                            </div>
-                            <MovieGrid
-                                items={watchedlist}
-                                emptyText="Liste boş"
-                                onAddWishlist={() => {}}
-                                onAddWatched={() => {}}
-                                userId={userId}
-                                onMovieClick={handleMovieClick}
-                            />
-                        </section>
                     </div>
                 )}
             </main>

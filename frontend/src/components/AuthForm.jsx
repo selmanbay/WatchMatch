@@ -198,7 +198,7 @@ export default function AuthForm({ onSuccess, onForgotPassword }) {
                     </button>
                 </p>
 
-                {/* 🔴 Yeni: Şifremi unuttum */}
+                {/* Şifremi unuttum */}
                 <p style={{ textAlign: "center", marginTop: 8, color: "rgba(255,255,255,0.7)" }}>
                     Şifreni mi unuttun?
                     <button

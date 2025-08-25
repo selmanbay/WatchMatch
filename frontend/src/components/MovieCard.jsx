@@ -12,73 +12,21 @@ import {
 } from "../styles/ui";
 import { pickPoster } from "../utils/images";   // ✅ poster normalizer
 import ListPicker from "./ListPicker";          // 🎞️ Film Listesi paneli
-
-/* === Beyaz çerçeveli + #650E0EFF paletli etkileşimli buton === */
-function ActionButton({ onClick, children, style }) {
-    const [hovered, setHovered] = useState(false);
-    const [pressed, setPressed] = useState(false);
-
-    const BASE  = "#650E0EFF";
-    const HOVER = "#7A1616FF";
-    const PRESS = "#4F0B0BFF";
-
-    const base = {
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 8,
-        width: "100%",
-        padding: "10px 14px",
-        borderRadius: 12,
-        userSelect: "none",
-        cursor: "pointer",
-        border: "1px solid rgba(255,255,255,0.95)", // ⬅️ beyaz çerçeve
-        color: "#fff",
-        background: pressed ? PRESS : hovered ? HOVER : BASE,
-        transition:
-            "transform 80ms ease, box-shadow 160ms ease, background 160ms ease, border-color 160ms ease",
-        transform: pressed ? "translateY(1px) scale(0.98)" : hovered ? "translateY(-1px)" : "none",
-        boxShadow: pressed
-            ? "0 2px 8px rgba(0,0,0,.25)"
-            : hovered
-                ? "0 6px 16px rgba(0,0,0,.35)"
-                : "0 2px 6px rgba(0,0,0,.25)",
-        outline: "none",
-        fontWeight: 700,
-        fontSize: 13,
-        ...style
-    };
-
-    return (
-        <button
-            type="button"
-            onClick={onClick}
-            onMouseEnter={() => setHovered(true)}
-            onMouseLeave={() => { setHovered(false); setPressed(false); }}
-            onMouseDown={() => setPressed(true)}
-            onMouseUp={() => setPressed(false)}
-            style={base}
-        >
-            {children}
-        </button>
-    );
-}
+import { ThumbsUp, ThumbsDown } from "lucide-react"; // 👍👎 ikonlar
 
 export default function MovieCard({
                                       movie,
                                       fromTmdb,
-                                      onAddWishlist,
-                                      onAddWatched,
-                                      onRemoveWishlist,   // opsiyonel
-                                      onRemoveWatched,    // opsiyonel
-                                      isWatched,          // opsiyonel: parent state
-                                      isInWishlist,       // opsiyonel: parent state
-                                      onOpenDetail,       // opsiyonel: karta tıklayınca detay aç
-                                      userId              // 🎯 Film listeleri için gerekli
+                                      isWatched,           // opsiyonel: parent state
+                                      isInWishlist,        // opsiyonel: parent state
+                                      onOpenDetail,        // opsiyonel: karta tıklayınca detay aç
+                                      userId               // 🎯 Film listeleri için gerekli
                                   }) {
     const [isHovered, setIsHovered] = useState(false);
-    const [showMenu, setShowMenu] = useState(false);
     const [showListPicker, setShowListPicker] = useState(false);
+
+    // 👍👎 reaksiyon (like | dislike | null)
+    const [reaction, setReaction] = useState(null);
 
     // UI durumları (parent verir ise onu dinleriz; vermezse local state)
     const [watchedUI, setWatchedUI] = useState(
@@ -105,70 +53,70 @@ export default function MovieCard({
         movie?.originalName ||
         "Untitled";
 
+    // Hover'da görünen “+ Ekle” butonu
     const addBtnStyle = {
         ...addToListHoverBtnStyle,
         opacity: isHovered ? 1 : 0,
         pointerEvents: isHovered ? "auto" : "none"
     };
 
-    // Tüm kartı kaplayan overlay
-    const overlayStyle = {
+    /* ------------- 👍👎 Reaksiyon barı (hover'da sağ üst) ------------- */
+    const reactionBarStyle = {
         position: "absolute",
-        inset: 0,
-        background: "rgba(12,12,12,0.82)",
-        backdropFilter: "blur(2px)",
-        display: "flex",
+        top: 8,
+        right: 8,
+        display: "inline-flex",
+        gap: 8,
+        padding: "6px 8px",
+        borderRadius: 999,
+        background: "rgba(20,20,20,0.55)",
+        border: "1px solid rgba(255,255,255,0.15)",
+        backdropFilter: "blur(6px)",
+        transition: "opacity 140ms ease",
+        opacity: isHovered ? 1 : 0,
+        pointerEvents: isHovered ? "auto" : "none",
+        zIndex: 7
+    };
+
+    const baseReactBtn = {
+        width: 28,
+        height: 28,
+        borderRadius: 999,
+        border: "1px solid rgba(255,255,255,0.18)",
+        background: "rgba(255,255,255,0.06)",
+        display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
-        zIndex: 6,
-        opacity: showMenu ? 1 : 0,
-        pointerEvents: showMenu ? "auto" : "none",
-        transition: "opacity .18s ease"
+        color: "rgba(255,255,255,0.85)",
+        cursor: "pointer",
+        transition: "transform 120ms ease, background 160ms ease, color 160ms ease, border-color 160ms ease",
     };
 
-    const overlayInnerStyle = {
-        display: "flex",
-        flexDirection: "column",
-        gap: 10,
-        width: "80%",
-        maxWidth: 280
+    const likeActive = reaction === "like";
+    const dislikeActive = reaction === "dislike";
+
+    const likeBtnStyle = {
+        ...baseReactBtn,
+        ...(likeActive
+            ? { background: "rgba(34,197,94,0.18)", borderColor: "rgba(34,197,94,0.5)", color: "#22c55e" }
+            : {}),
+    };
+    const dislikeBtnStyle = {
+        ...baseReactBtn,
+        ...(dislikeActive
+            ? { background: "rgba(239,68,68,0.18)", borderColor: "rgba(239,68,68,0.5)", color: "#ef4444" }
+            : {}),
     };
 
-    // —————— Tek-durum (mutually exclusive) ——————
-    const handleWishlist = (e) => {
+    const handleLike = (e) => {
         e.stopPropagation();
-        if (!wishlistUI) {
-            onAddWishlist?.(movie);
-            setWishlistUI(true);
-            if (watchedUI) {
-                onRemoveWatched?.(movie);
-                setWatchedUI(false);
-            }
-        }
-        setShowMenu(false);
-        setShowListPicker(false);
+        setReaction((r) => (r === "like" ? null : "like"));
     };
-
-    const handleWatched = (e) => {
+    const handleDislike = (e) => {
         e.stopPropagation();
-        if (!watchedUI) {
-            onAddWatched?.(movie);
-            setWatchedUI(true);
-            if (wishlistUI) {
-                onRemoveWishlist?.(movie);
-                setWishlistUI(false);
-            }
-        }
-        setShowMenu(false);
-        setShowListPicker(false);
+        setReaction((r) => (r === "dislike" ? null : "dislike"));
     };
-
-    const openListPicker = (e) => {
-        e.stopPropagation();
-        setShowListPicker((v) => !v); // aynı butona tekrar basınca kapansın
-        setShowMenu(true);            // overlay açık kalsın
-    };
-    // ————————————————————————————————
+    /* ------------------------------------------------------------------ */
 
     return (
         <div style={movieCardWrapStyle}>
@@ -179,8 +127,8 @@ export default function MovieCard({
                 onMouseEnter={() => setIsHovered(true)}
                 onMouseLeave={() => {
                     setIsHovered(false);
-                    setShowMenu(false);
-                    setShowListPicker(false);
+                    // Liste paneli açık kalsın istiyorsan bu satırı kaldır.
+                    // setShowListPicker(false);
                 }}
                 role="button"
                 aria-label={`Open details for ${title}`}
@@ -203,43 +151,39 @@ export default function MovieCard({
                     )}
                 </div>
 
-                {/* Hover'da görünen “+ Ekle” tetikleyici */}
+                {/* Hover'da görünen 👍👎 reaksiyon barı (sağ üst) */}
+                <div style={reactionBarStyle} aria-label="Beğeni seçenekleri">
+                    <button
+                        aria-label="Beğen"
+                        style={likeBtnStyle}
+                        onClick={handleLike}
+                        onMouseDown={(e) => e.stopPropagation()}
+                    >
+                        <ThumbsUp size={16} />
+                    </button>
+                    <button
+                        aria-label="Beğenme"
+                        style={dislikeBtnStyle}
+                        onClick={handleDislike}
+                        onMouseDown={(e) => e.stopPropagation()}
+                    >
+                        <ThumbsDown size={16} />
+                    </button>
+                </div>
+
+                {/* Hover'da görünen “+ Ekle” tetikleyici — sadece ListPicker aç */}
                 <button
                     style={addBtnStyle}
                     onClick={(e) => {
                         e.stopPropagation();
-                        setShowMenu((v) => {
-                            const next = !v;
-                            if (!next) setShowListPicker(false);
-                            return next;
-                        });
+                        setShowListPicker(true); //
                     }}
-                    aria-haspopup="menu"
+                    aria-haspopup="dialog"
                 >
                     + Ekle
                 </button>
 
-                {/* 🔴 TÜM KARTI KAPLAYAN OVERLAY MENÜ */}
-                <div
-                    style={overlayStyle}
-                    onClick={() => {
-                        setShowMenu(false);
-                        setShowListPicker(false);
-                    }}
-                    role="menu"
-                    aria-label="Ekle menüsü"
-                >
-                    <div
-                        style={overlayInnerStyle}
-                        onClick={(e) => e.stopPropagation()} // içeriğe tıklayınca kapanmasın
-                    >
-                        <ActionButton onClick={handleWishlist}>+ İstek Listesi</ActionButton>
-                        <ActionButton onClick={handleWatched}>+ İzledim</ActionButton>
-                        <ActionButton onClick={openListPicker}>+ Film Listesi</ActionButton>
-                    </div>
-                </div>
-
-                {/* Sağ üst durum ikonları */}
+                {/* Sağ üst durum ikonları (mevcut rozetler) */}
                 <div style={statusWrapStyle}>
                     {watchedUI && (
                         <div style={statusBadgeStyle} title="İzledim">
@@ -267,12 +211,12 @@ export default function MovieCard({
                     </div>
                 )}
 
-                {/* 🎞️ Film Listesi paneli */}
+                {/* 🎞️ Film Listesi paneli (sadece bu açılıyor) */}
                 <ListPicker
                     open={showListPicker}
                     onClose={() => setShowListPicker(false)}
                     movie={movie}
-                    userId={userId}     // giriş yapan kullanıcının id’si
+                    userId={userId}
                     fromTmdb={fromTmdb}
                 />
             </div>

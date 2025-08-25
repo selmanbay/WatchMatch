@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Camera, Upload, ArrowLeft, Film, Heart, Eye, Edit3 } from "lucide-react";
 import { uploadListCover } from "../api/movieLists";
 import { pickPoster } from "../utils/images";
+import MovieDetailModal from "../components/MovieDetailModal";
 
 const API  = process.env.REACT_APP_API_BASE || "http://localhost:8080";
 const TMDB = "https://image.tmdb.org/t/p/w342";
@@ -266,7 +267,7 @@ function AlbumCard({ album, onOpen, onUploadCover }) {
 }
 
 /* ---------------- Film kartı ---------------- */
-function MovieCard({ movie }) {
+function MovieCard({ movie, onClick }) {
     const [isHovered, setIsHovered] = useState(false);
 
     const cardStyle = {
@@ -313,6 +314,7 @@ function MovieCard({ movie }) {
             style={cardStyle}
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
+            onClick={() => onClick?.(movie)}
             title={movie?.title || movie?.name}
         >
             {poster ? (
@@ -382,6 +384,23 @@ export default function ProfilePage({ user: initialUser, userId }) {
     const avatarFileRef = useRef(null);
     const coverFileRef = useRef(null);
     const coverForListIdRef = useRef(null); // hangi albüm için kapak yüklenecek
+
+    // 🎬 Detay Modal state’i
+    const [detail, setDetail] = useState({ open: false, movie: null, fromTmdb: false });
+
+    // wm_user eşitleme için (opsiyonel)
+    useEffect(() => {
+        try {
+            if (!user) return;
+            const raw = localStorage.getItem("wm_user");
+            if (raw) {
+                const cur = JSON.parse(raw);
+                localStorage.setItem("wm_user", JSON.stringify({ ...cur, ...user }));
+            } else {
+                localStorage.setItem("wm_user", JSON.stringify(user));
+            }
+        } catch {}
+    }, [user]);
 
     /* ----- Kullanıcı + Tercihler ----- */
     useEffect(() => {
@@ -676,6 +695,13 @@ export default function ProfilePage({ user: initialUser, userId }) {
         alignSelf: "flex-start",
     };
 
+    // 🎬 Modal helper’ları
+    const openDetail = (movieItem, tmdb = false) => {
+        // Profildeki liste filmleri DB Movie olduğundan tmdb=false doğru
+        setDetail({ open: true, movie: movieItem, fromTmdb: tmdb });
+    };
+    const closeDetail = () => setDetail({ open: false, movie: null, fromTmdb: false });
+
     return (
         <div style={containerStyle}>
             <div style={patternStyle} />
@@ -876,13 +902,6 @@ export default function ProfilePage({ user: initialUser, userId }) {
                                     ))}
                                 </div>
                             )}
-                            <input
-                                ref={coverFileRef}
-                                type="file"
-                                accept="image/*"
-                                style={{ display: "none" }}
-                                onChange={onCoverFile}
-                            />
                         </>
                     ) : (
                         <>
@@ -922,22 +941,36 @@ export default function ProfilePage({ user: initialUser, userId }) {
                                     }}
                                 >
                                     {(selectedAlbum.movies || []).map((movie) => (
-                                        <MovieCard key={movie.id ?? movie.tmdbId ?? movie.title} movie={movie} />
+                                        <MovieCard
+                                            key={movie.id ?? movie.tmdbId ?? movie.title}
+                                            movie={movie}
+                                            onClick={(m) => openDetail(m, false)}
+                                        />
                                     ))}
                                 </div>
                             )}
-
-                            <input
-                                ref={coverFileRef}
-                                type="file"
-                                accept="image/*"
-                                style={{ display: "none" }}
-                                onChange={onCoverFile}
-                            />
                         </>
                     )}
+
+                    {/* Tek adet kapak yükleme input'u */}
+                    <input
+                        ref={coverFileRef}
+                        type="file"
+                        accept="image/*"
+                        style={{ display: "none" }}
+                        onChange={onCoverFile}
+                    />
                 </div>
             </div>
+
+            {/* 🎬 Movie Detail Modal */}
+            <MovieDetailModal
+                open={detail.open}
+                onClose={closeDetail}
+                movie={detail.movie}
+                fromTmdb={detail.fromTmdb}
+                userId={userId}
+            />
         </div>
     );
 }

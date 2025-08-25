@@ -93,7 +93,7 @@ export default function StepProfile({
                         ? "Yükleniyor..."
                         : countriesError
                             ? "Ülke alınamadı"
-                            : "Ülke (zorunlu)"}
+                            : "Ülke"}
                 </option>
                 {countries.map((c) => (
                     <option key={c.id} value={c.id}>

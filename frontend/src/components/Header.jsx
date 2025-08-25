@@ -8,6 +8,54 @@ import {
 } from "../styles/ui";
 import AvatarMenu from "./nav/AvatarMenu";
 
+/** Hash modu mu kullanılıyor? (/#... ya da #...) */
+function isHashMode() {
+    const href = window.location.href;
+    const hash = window.location.hash || "";
+    return href.includes("/#") || hash.startsWith("#");
+}
+
+/** Hash kökü: '/#' mi yoksa '#' mi? (projeye göre ikisi de görülebiliyor) */
+function hashRoot() {
+    const hash = window.location.hash || "";
+    if (hash.startsWith("#/")) return "/#"; // '/#' + '/route' -> '/#/route'
+    if (hash.startsWith("#")) return "#";   // '#' + 'route'  -> '#route'
+    // hash yoksa ama proje hash mode ise genelde '/#' daha güvenli
+    return "/#";
+}
+
+/** Verilen path'i ("/search" gibi) bulunduğumuz moda göre absolute URL'e çevirir */
+function toAbs(path) {
+    const clean = path.startsWith("/") ? path : `/${path}`;
+    if (isHashMode()) {
+        const root = hashRoot();
+        // root '#':  '#search' ; root '/#': '/#/search'
+        return root === "#" ? `#${clean.replace(/^\//, "")}` : `${root}${clean}`;
+    }
+    return clean;
+}
+
+/** Şu an home'da mıyız? */
+function isAtHome() {
+    if (isHashMode()) {
+        const hash = (window.location.hash || "").replace(/^#/, "");
+        // '#', '', '/', '#/' vb. varyasyonları home sayalım
+        return hash === "" || hash === "/" || hash.toLowerCase() === "home";
+    } else {
+        const p = window.location.pathname || "/";
+        return p === "/" || p.toLowerCase() === "/home";
+    }
+}
+
+/** Home URL */
+function homeUrl() {
+    if (!isHashMode()) return "/";
+    const root = hashRoot();
+    // '#profile' gibi düz hash kullanılıyorsa home => '#'
+    // '/#/' kullanılıyorsa home => '/#/'
+    return root === "#" ? "#" : "/#/";
+}
+
 export default function Header({
                                    user,
                                    searchQuery,
@@ -40,7 +88,7 @@ export default function Header({
 
     const goHome = () => {
         if (typeof onHome === "function") onHome();
-        else window.location.href = "/";
+        else window.location.assign(homeUrl());
     };
 
     // sağ grup
@@ -95,8 +143,22 @@ export default function Header({
     const doSearch = () => {
         const q = localValue.trim();
         if (!q) return;
-        onSearch?.(q);
-        setLocalValue("");              // sadece yerel input temizle
+
+        onSearch?.(q); // parent'a haber ver (analytics vs.)
+
+        const targetUrl = toAbs(`/search?q=${encodeURIComponent(q)}`);
+        if (isAtHome()) {
+            // Zaten anasayfadaysak doğrudan aramaya git
+            window.location.assign(targetUrl);
+        } else {
+            // Anasayfaya git, sonrasında aramaya otomatik yönlendir
+            try {
+                localStorage.setItem("wm_pending_search_url", targetUrl);
+            } catch {}
+            window.location.assign(homeUrl());
+        }
+
+        setLocalValue(""); // sadece yerel input temizle
         setTimeout(() => inputRef.current?.blur(), 0);
     };
 
@@ -270,7 +332,12 @@ export default function Header({
                     {user && (
                         <AvatarMenu
                             user={user}
-                            onProfile={onProfile ?? (() => { window.location.href = "/profile"; })}
+                            onProfile={
+                                onProfile ??
+                                (() => {
+                                    window.location.assign(toAbs("/profile"));
+                                })
+                            }
                             onLogout={onLogout}
                         />
                     )}
