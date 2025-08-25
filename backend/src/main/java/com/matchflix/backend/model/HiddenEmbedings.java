@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
                 @Index(name = "idx_he_user_movie", columnList = "user_id, movie_id")
         }
 )
-public class HiddenEmbedings { // ismi bilerek değiştirmedim: mevcut referanslar kırılmasın.
+public class HiddenEmbedings {
 
     public enum InteractionType { CLICK, VIEW }
 

@@ -1,26 +1,27 @@
 package com.matchflix.backend.service;
 
-import com.matchflix.backend.model.Genre;
-import com.matchflix.backend.model.Movie;
-import com.matchflix.backend.model.MovieList;
-import com.matchflix.backend.model.User;
-import com.matchflix.backend.model.UserGenreWeights;
+import com.matchflix.backend.model.*;
 import com.matchflix.backend.repository.UserGenreWeightRepository;
 import com.matchflix.backend.repository.UserRepository;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.*;
 
-/**
- * Match & vektör servisimiz (UPSERT fix'li).
- */
 @Service
 public class MatchService {
 
     private final UserGenreWeightRepository weightsRepo;
     private final UserRepository userRepository;
+
+    // Liste tiplerine ağırlıklar
+    private static final double W_WATCHED  = 1.0;
+    private static final double W_WISHLIST = 0.5;
+    private static final double W_LIKE     = 0.7;
+    private static final double W_DISLIKE  = -0.5;
+    private static final double W_OTHER    = 0.2;
 
     public MatchService(UserGenreWeightRepository weightsRepo, UserRepository userRepository) {
         this.weightsRepo = weightsRepo;
@@ -30,113 +31,161 @@ public class MatchService {
     /** 1) Kullanıcının genre vektörünü hesapla ve UPSERT et. */
     @Transactional
     public void refreshUserVector(Long userId) {
-        // 1) User entity'yi yükle
+        // 1) User
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
 
-        // 2) Tür ağırlıklarını topla
+        // 2) Tür ağırlıkları
         Map<Long, Double> genreWeights = new HashMap<>();
+        Set<Long> seenMovieIds = new HashSet<>(); // aynı filmi bir kez say
 
         if (user.getMovieLists() != null) {
             for (MovieList list : user.getMovieLists()) {
-                // ListType: WATCHED 1.0, WISHLIST 0.5, OTHER 0.2 (istersen 0.0 yap)
                 double weightFactor = switch (list.getListType()) {
-                    case WATCHED -> 1.0;
-                    case WISHLIST -> 0.5;
-                    default -> 0.2;
+                    case WATCHED -> W_WATCHED;
+                    case WISHLIST -> W_WISHLIST;
+                    case LIKE -> W_LIKE;
+                    case DISLIKE -> W_DISLIKE;
+                    default -> W_OTHER;
                 };
 
                 if (list.getMovies() == null) continue;
-
                 for (Movie movie : list.getMovies()) {
+                    if (movie == null || movie.getId() == null) continue;
+                    if (!seenMovieIds.add(movie.getId())) continue;
+
                     if (movie.getGenres() == null) continue;
                     for (Genre genre : movie.getGenres()) {
+                        if (genre == null || genre.getId() == null) continue;
                         genreWeights.merge(genre.getId(), weightFactor, Double::sum);
                     }
                 }
             }
         }
 
-        // 3) Vektörü serialize et (örn: "3:2.0,5:0.5,")
+        // Negatif kalanları 0'a çek (cosine için)
+        if (!genreWeights.isEmpty()) {
+            for (Map.Entry<Long, Double> e : new ArrayList<>(genreWeights.entrySet())) {
+                if (e.getValue() < 0) genreWeights.put(e.getKey(), 0.0);
+            }
+        }
+
+        // 3) Serialize + norm
         String vector = serializeVector(genreWeights);
+        double norm = l2(genreWeights);
 
-        // 4) UPSERT: user_id UNIQUE olduğu için önce bul, yoksa oluştur
-        UserGenreWeights weightsRow = weightsRepo.findByUserId(userId)
-                .orElseGet(() -> {
-                    UserGenreWeights ugw = new UserGenreWeights();
-                    ugw.setUserId(userId); // kritik!
-                    return ugw;
-                });
+        // 4) UPSERT
+        UserGenreWeights row = weightsRepo.findByUserId(userId).orElseGet(() -> {
+            UserGenreWeights ugw = new UserGenreWeights();
+            ugw.setUserId(userId);
+            return ugw;
+        });
 
-        Long countryId = user.getCountry() != null ? user.getCountry().getId() : null;
-        weightsRow.setCountryId(countryId);
-        weightsRow.setWeightsVector(vector);
+        row.setCountryId(user.getCountry() != null ? user.getCountry().getId() : null);
+        row.setWeightsVector(vector);
+        row.setVectorNorm(norm);
+        row.setUpdatedAt(Instant.now());
 
-        weightsRepo.save(weightsRow); // varsa UPDATE, yoksa INSERT
+        weightsRepo.save(row);
     }
 
-    /** 2) Aynı ülkeden en yakın eşleşmeler (basit cosine) – userId ve limit alır. */
+    /** 2) Benzer kullanıcıları getir (cosine). */
     @Transactional(readOnly = true)
-    public List<Long> findMatchesByCountry(Long userId, int limit) {
+    public List<MatchItem> findMatches(Long userId, int limit, boolean sameCountryOnly) {
+        if (limit <= 0) limit = 20;
+
         User me = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
 
-        UserGenreWeights meRow = weightsRepo.findByUserId(userId).orElse(null);
-        if (meRow == null || meRow.getWeightsVector() == null) return List.of();
+        UserGenreWeights meRow = weightsRepo.findByUserId(userId)
+                .orElseThrow(() -> new IllegalStateException("Önce vektörü hesapla (POST /api/match/refresh/" + userId + ")"));
 
-        Map<Long, Double> meVec = deserialize(meRow.getWeightsVector());
+        Map<Long, Double> vMe = deserialize(meRow.getWeightsVector());
+        double nMe = meRow.getVectorNorm() != null ? meRow.getVectorNorm() : l2(vMe);
+        if (nMe == 0) return List.of();
 
-        var others = weightsRepo.findByCountryIdAndUserIdNot(
-                me.getCountry() != null ? me.getCountry().getId() : null,
-                userId,
-                PageRequest.of(0, Math.max(limit, 1))
-        );
+        var page = PageRequest.of(0, Math.max(limit * 3, limit));
 
-        // hesapla + sırala
-        List<Map.Entry<Long, Integer>> scores = new ArrayList<>();
-        for (UserGenreWeights other : others) {
-            Map<Long, Double> ov = deserialize(other.getWeightsVector());
-            double sim = cosineSimilarity(meVec, ov);
-            scores.add(Map.entry(other.getUserId(), (int)Math.round(sim * 100)));
+        var candidates = sameCountryOnly
+                ? weightsRepo.findSameCountryOrBothNull(me.getCountry() != null ? me.getCountry().getId() : null,
+                userId, page)
+                : weightsRepo.findAllExcept(userId, page);
+
+        List<MatchItem> out = new ArrayList<>();
+        for (UserGenreWeights other : candidates) {
+            if (Objects.equals(other.getUserId(), userId)) continue;
+
+            Map<Long, Double> vO = deserialize(other.getWeightsVector());
+            double nO = other.getVectorNorm() != null ? other.getVectorNorm() : l2(vO);
+            if (nO == 0) continue;
+
+            double sim = dot(vMe, vO) / (nMe * nO);
+            if (sim <= 0) continue;
+
+            User u = userRepository.findById(other.getUserId()).orElse(null);
+            if (u == null) continue;
+
+            MatchItem mi = new MatchItem();
+            mi.userId   = u.getId();
+            mi.username = u.getUsername();
+            mi.countryId = (u.getCountry() != null) ? u.getCountry().getId() : null;
+            mi.avatarUrl = u.getPp_link();
+            mi.score    = (int)Math.round(sim * 100); // 0..100
+            out.add(mi);
         }
-        scores.sort((a, b) -> Integer.compare(b.getValue(), a.getValue()));
 
-        // sadece id listesini dön (istersen skorlu DTO dönebiliriz)
-        List<Long> result = new ArrayList<>();
-        for (var e : scores) result.add(e.getKey());
-        return result;
+        out.sort((a, b) -> Integer.compare(b.score, a.score));
+        if (out.size() > limit) out = out.subList(0, limit);
+        return out;
     }
 
-    // ---------------- yardımcılar ----------------
-
-    private String serializeVector(Map<Long, Double> weights) {
+    // ------------ yardımcılar ------------
+    private static String serializeVector(Map<Long, Double> weights) {
         if (weights == null || weights.isEmpty()) return "";
         StringBuilder sb = new StringBuilder();
-        weights.forEach((id, w) -> sb.append(id).append(":").append(w).append(","));
+        weights.forEach((id, w) -> {
+            if (Math.abs(w) > 1e-9) sb.append(id).append(':').append(w).append(',');
+        });
         return sb.toString();
     }
 
-    private Map<Long, Double> deserialize(String vector) {
+    private static Map<Long, Double> deserialize(String vector) {
         Map<Long, Double> map = new HashMap<>();
         if (vector == null || vector.isBlank()) return map;
         for (String p : vector.split(",")) {
             if (p.isBlank()) continue;
             String[] kv = p.split(":");
             if (kv.length != 2) continue;
-            map.put(Long.parseLong(kv[0]), Double.parseDouble(kv[1]));
+            try {
+                map.put(Long.parseLong(kv[0].trim()), Double.parseDouble(kv[1].trim()));
+            } catch (NumberFormatException ignored) { }
         }
         return map;
     }
 
-    private double cosineSimilarity(Map<Long, Double> a, Map<Long, Double> b) {
-        double dot = 0, na = 0, nb = 0;
-        for (double v : a.values()) na += v*v;
-        for (double v : b.values()) nb += v*v;
+    private static double l2(Map<Long, Double> v) {
+        double s = 0;
+        for (double x : v.values()) s += x*x;
+        return Math.sqrt(s);
+    }
+
+    private static double dot(Map<Long, Double> a, Map<Long, Double> b) {
+        // küçük map üzerinden dön
+        if (a.size() > b.size()) { var t = a; a = b; b = t; }
+        double d = 0;
         for (var e : a.entrySet()) {
             Double bv = b.get(e.getKey());
-            if (bv != null) dot += e.getValue() * bv;
+            if (bv != null) d += e.getValue() * bv;
         }
-        if (na == 0 || nb == 0) return 0;
-        return dot / (Math.sqrt(na) * Math.sqrt(nb));
+        return d;
+    }
+
+    // Dönen DTO
+    public static class MatchItem {
+        public Long userId;
+        public String username;
+        public Long countryId;
+        public String avatarUrl;
+        public int score;
     }
 }

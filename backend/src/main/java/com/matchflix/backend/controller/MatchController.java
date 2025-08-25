@@ -15,13 +15,21 @@ public class MatchController {
         this.matchService = matchService;
     }
 
-    /**
-     * Belirli userId için genre vektörünü refresh eder.
-     * Swagger’dan: POST /api/match/refresh/{userId}
-     */
+    /** Belirli userId için genre vektörünü refresh eder. */
     @PostMapping("/refresh/{userId}")
-    public ResponseEntity<String> refreshUserVector(@PathVariable Long userId) {
+    public ResponseEntity<?> refreshUserVector(@PathVariable Long userId) {
         matchService.refreshUserVector(userId);
-        return ResponseEntity.ok("✅ User " + userId + " genre vector refreshed");
+        return ResponseEntity.ok().body(
+                java.util.Map.of("ok", true, "message", "User " + userId + " vector refreshed")
+        );
+    }
+
+    /** Benzer kullanıcıları getir. ?limit=20&sameCountry=true */
+    @GetMapping("/{userId}")
+    public ResponseEntity<?> getMatches(@PathVariable Long userId,
+                                        @RequestParam(defaultValue = "20") int limit,
+                                        @RequestParam(defaultValue = "true") boolean sameCountry) {
+        var items = matchService.findMatches(userId, limit, sameCountry);
+        return ResponseEntity.ok(items);
     }
 }
