@@ -1,0 +1,43 @@
+services:
+  db:
+    image: postgres:15
+    container_name: matchflix-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 123456
+      POSTGRES_DB: matchflixdb
+    ports:
+      - "5434:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d matchflixdb"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .            # kökten al
+      dockerfile: Dockerfile
+    container_name: matchflix-backend
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/matchflixdb
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: 123456
+      TMDB_API_KEY: 36264a0cf1b793ad8700a234e0a7166b
+      JWT_SECRET: B4HkDK1Kc2eHJ5BBeIdDH9Nc4WXKULmB0efDBLMFGT7L/Ol3ovlgCaAv8TzHo7/b
+      JWT_EXPIRATION_MS: 604800000
+      APP_UPLOAD_DIR: /app/uploads
+    volumes:
+      - ./uploads:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:

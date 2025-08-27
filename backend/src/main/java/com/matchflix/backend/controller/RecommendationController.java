@@ -1,4 +1,4 @@
-package com.matchflix.backend.controller;
+/*package com.matchflix.backend.controller;
 
 import com.matchflix.backend.dto.ScoredMovieDto;
 import com.matchflix.backend.service.SimilarityService;
@@ -26,3 +26,4 @@ public class RecommendationController {
         return ResponseEntity.ok(similarityService.similarTo(movieId, limit));
     }
 }
+*/

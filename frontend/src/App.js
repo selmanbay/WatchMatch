@@ -4,14 +4,18 @@ import Header from "./components/Header";
 import AuthForm from "./components/AuthForm";
 import MovieGrid from "./components/MovieGrid";
 import ProfilePage from "./pages/ProfilePage";
+import BestMatchCard from "./components/BestMatchCard";
+import MatchUsersRail from "./components/MatchUsersRail";
+import MovieDetailModal from "./components/MovieDetailModal";
+
 import {
     mainContentStyle,
     containerStyle,
     sectionHeaderStyle,
-    sectionTitleStyle
+    sectionTitleStyle,
 } from "./styles/ui";
 
-/* --- Yardımcılar --- */
+/* ================= Helpers ================= */
 function thumbFrom(item) {
     const p =
         item?.posterUrl ||
@@ -21,11 +25,16 @@ function thumbFrom(item) {
         item?.backdrop_path;
     if (!p) return null;
     if (/^https?:\/\//i.test(p) || String(p).startsWith("data:")) return p;
-    if (String(p).startsWith("/")) return `https://image.tmdb.org/t/p/w92${p}`;
+    if (String(p).startsWith("/")) return `https://image.tmdb.org/t/p/w342${p}`;
     return p;
 }
-
-// Arkaplanda yüksek çözünürlüklü görsel
+function getHighQualityPoster(item) {
+    const p = item?.posterUrl || item?.poster_path || item?.posterPath || item?.image;
+    if (!p) return null;
+    if (/^https?:\/\//i.test(p) || String(p).startsWith("data:")) return p;
+    if (String(p).startsWith("/")) return `https://image.tmdb.org/t/p/w500${p}`;
+    return p;
+}
 function getBackdropImage(item) {
     const backdropPath =
         item?.backdrop_path ||
@@ -34,12 +43,12 @@ function getBackdropImage(item) {
         item?.posterPath ||
         item?.image;
     if (!backdropPath) return null;
-    if (/^https?:\/\//i.test(backdropPath) || String(backdropPath).startsWith("data:")) return backdropPath;
-    if (String(backdropPath).startsWith("/")) return `https://image.tmdb.org/t/p/w1280${backdropPath}`;
+    if (/^https?:\/\//i.test(backdropPath) || String(backdropPath).startsWith("data:"))
+        return backdropPath;
+    if (String(backdropPath).startsWith("/"))
+        return `https://image.tmdb.org/t/p/w1280${backdropPath}`;
     return backdropPath;
 }
-
-// TMDB controller farklı şekillerde cevap verebilir
 function extractMovies(payload) {
     if (!payload) return [];
     if (Array.isArray(payload)) return payload;
@@ -50,111 +59,59 @@ function extractMovies(payload) {
     if (Array.isArray(payload.data)) return payload.data;
     return [];
 }
-
-/* - Anasayfada göstereceğimiz kategoriler - */
-const GENRES = [
-    { id: 28, name: "Aksiyon" },
-    { id: 12, name: "Macera" },
-    { id: 14, name: "Fantastik" },
-    { id: 27, name: "Korku" },
-    { id: 35, name: "Komedi" },
-    { id: 18, name: "Dram" },
-    { id: 878, name: "Bilim Kurgu" },
-    { id: 10749, name: "Romantik" }
-];
-
-function hasGenre(row, gid) {
-    if (!row) return false;
-    const ids =
-        row.genre_ids ||
-        row.genreIds ||
-        (Array.isArray(row.genres)
-            ? row.genres.map((g) => (typeof g === "number" ? g : g?.id)).filter(Boolean)
-            : []);
-    return Array.isArray(ids) && ids.includes(gid);
+function getTitle(it) {
+    return (it?.title || it?.name || "Film").trim();
+}
+function getYear(it) {
+    const d = it?.release_date || it?.first_air_date || it?.releaseYear || "";
+    return d ? String(d).slice(0, 4) : "";
+}
+function getVote(it) {
+    const v = it?.vote_average ?? it?.rating ?? it?.voteAverage;
+    return typeof v === "number" ? Math.round(v * 10) / 10 : null;
 }
 
-function uniqById(list) {
-    const seen = new Set();
-    const out = [];
-    for (const item of list) {
-        const key = item.id ?? item.tmdbId ?? `${item.title}-${item.release_date}`;
-        if (!seen.has(key)) {
-            seen.add(key);
-            out.push(item);
-        }
-    }
-    return out;
-}
+const API = process.env.REACT_APP_API_BASE || "http://localhost:8080";
 
-async function fetchGenreWithFallbacks(genreId, page, signal) {
-    const candidates = [
-        `http://localhost:8080/api/tmdb/genre/${genreId}?page=${page}`,
-        `http://localhost:8080/api/tmdb/genre/${genreId}/popular?page=${page}`,
-        `http://localhost:8080/api/tmdb/discover?with_genres=${genreId}&page=${page}`,
-        `http://localhost:8080/api/tmdb/discover/${genreId}?page=${page}`,
-        `http://localhost:8080/api/tmdb/genre/${genreId}/trending?page=${page}`,
-        `http://localhost:8080/api/tmdb/genre/${genreId}/top-rated?page=${page}`,
-        `http://localhost:8080/api/tmdb/genre/${genreId}/movies?page=${page}`,
-        // son çare: popular’ı çek ve client’ta filtrele
-        `http://localhost:8080/api/tmdb/popular?page=${page}`
-    ];
-
-    for (let i = 0; i < candidates.length; i++) {
-        try {
-            const res = await fetch(candidates[i], { signal });
-            if (!res.ok) continue;
-            const data = await res.json();
-            let arr = extractMovies(data);
-
-            if (i === candidates.length - 1) {
-                arr = arr.filter((m) => hasGenre(m, genreId));
-            }
-
-            if (Array.isArray(arr) && arr.length > 0) {
-                return uniqById(arr);
-            }
-        } catch (e) {
-            if (signal?.aborted) throw e;
-        }
-    }
-    return [];
-}
-
+/* ================= Component ================= */
 function App() {
     const [user, setUser] = useState(null);
-    const [view, setView] = useState("home"); // "home" | "profile"
+    const [view, setView] = useState("home");
 
-    const [movies, setMovies] = useState([]);
-    const [loading, setLoading] = useState(false);
+    // kişisel feed
+    const [homeFeed, setHomeFeed] = useState({ sections: [] });
+    const [feedLoading, setFeedLoading] = useState(false);
 
+    // TMDB ek vitrinler
+    const [tmdbPopular, setTmdbPopular] = useState([]);
+    const [tmdbExtra, setTmdbExtra] = useState([]); // top rated / now playing / upcoming / trending
+    const [tmdbLoading, setTmdbLoading] = useState(false);
+
+    // hero slayt
+    const [heroMovies, setHeroMovies] = useState([]);
+    const [currentSlide, setCurrentSlide] = useState(0);
+    const [lastClickedFilm, setLastClickedFilm] = useState(null);
+    const heroFromFeedRef = useRef(false);
+
+    // arama
+    const [searchQuery, setSearchQuery] = useState("");
+
+    // dropdown öneriler
+    const [suggestions, setSuggestions] = useState([]);
+    const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+
+    // listeler
     const [wishlist, setWishlist] = useState([]);
     const [watchedlist, setWatchedlist] = useState([]);
 
-    const [tmdbMovies, setTmdbMovies] = useState([]);
-    const [tmdbLoading, setTmdbLoading] = useState(false);
+    // yalnızca HERO/ÖNERİ için modal (kartlar kendi modallarını açsın diye MovieGrid’e onClick vermiyoruz)
+    const [detailOpen, setDetailOpen] = useState(false);
+    const [detailMovie, setDetailMovie] = useState(null);
 
-    // Son tıklanan film → hero arkaplanı
-    const [lastClickedFilm, setLastClickedFilm] = useState(null);
-
-    // --- Arama state ---
-    const [searchQuery, setSearchQuery] = useState("");
-    const [searchResults, setSearchResults] = useState([]);
-    const [isSearching, setIsSearching] = useState(false);
-    const [searchLoading, setSearchLoading] = useState(false);
-
-    // --- Öneri dropdown state ---
-    const [suggestions, setSuggestions] = useState([]); // [{id,title,year,poster,source,kind,raw}]
-    const [suggestionsLoading, setSuggestionsLoading] = useState(false);
-
-    // --- Kategori satırları ---
-    const [genreSections, setGenreSections] = useState(
-        GENRES.map((g) => ({ ...g, items: [], loading: false, error: null }))
-    );
-
+    const matchRailRef = useRef(null);
     const bootHandledRef = useRef(false);
 
-    /* ---------------- History entegrasyonu ---------------- */
+    /* -------------- History -------------- */
     useEffect(() => {
         try {
             window.history.replaceState(
@@ -164,30 +121,21 @@ function App() {
             );
         } catch {}
     }, []);
-
     useEffect(() => {
         const onPop = (e) => {
             const v = e.state?.view;
-            if (v === "profile") {
-                setView("profile");
-            } else {
-                setView("home");
-                setIsSearching(false);
-                setSearchResults([]);
-                setSearchQuery("");
-            }
+            if (v === "profile") setView("profile");
+            else setView("home");
         };
         window.addEventListener("popstate", onPop);
         return () => window.removeEventListener("popstate", onPop);
     }, []);
-
     const goToProfile = () => {
         setView("profile");
         try {
             window.history.pushState({ view: "profile" }, "", "#profile");
         } catch {}
     };
-
     const goToHome = () => {
         if (window.history.state?.view === "profile" || view === "profile") {
             try {
@@ -195,9 +143,6 @@ function App() {
                 return;
             } catch {}
         }
-        setIsSearching(false);
-        setSearchResults([]);
-        setSearchQuery("");
         setView("home");
         try {
             window.history.replaceState(
@@ -207,9 +152,8 @@ function App() {
             );
         } catch {}
     };
-    /* ----------------------------------------------------- */
 
-    // Kalıcı oturum
+    /* -------------- Session -------------- */
     useEffect(() => {
         try {
             const raw = localStorage.getItem("wm_user");
@@ -220,128 +164,178 @@ function App() {
                     setView("home");
                 }
             }
-        } catch (e) {
-            console.warn("Kayıtlı oturum okunamadı:", e);
-        }
+        } catch {}
     }, []);
-
-    // Kullanıcı id
     const userId = user?.id ?? user?.userId;
 
-    // Movies + TMDB (kullanıcı gelince)
-    useEffect(() => {
-        if (user === null) return;
-
-        setLoading(true);
-        fetch("http://localhost:8080/api/movies")
-            .then((res) => res.json())
-            .then((data) => {
-                setMovies(data);
-                setLoading(false);
+    /* -------------- Feed -------------- */
+    const normalizeSections = (raw) => {
+        const list = Array.isArray(raw?.sections) ? raw.sections : Array.isArray(raw) ? raw : [];
+        const mapped = list
+            .map((s, idx) => {
+                const items = Array.isArray(s?.items) ? s.items : extractMovies(s);
+                const title =
+                    s?.title ||
+                    s?.name ||
+                    (s?.key ? s.key.replaceAll("_", " ").toUpperCase() : `Bölüm ${idx + 1}`);
+                const key = s?.key || `sec_${idx}`;
+                return { key, title, items: Array.isArray(items) ? items : [] };
             })
-            .catch(() => {
-                setLoading(false);
-                console.warn("❌ Filmler alınamadı!");
+            .filter((s) => s.items.length > 0);
+        return mapped;
+    };
+
+    const loadHomeFeed = async (uid) => {
+        if (!uid) return;
+        setFeedLoading(true);
+        try {
+            const res = await fetch(`${API}/api/reco/home?userId=${uid}&perSection=20`, {
+                headers: { accept: "*/*" },
             });
+            if (!res.ok) throw new Error(`status ${res.status}`);
+            const data = await res.json();
+            const sections = normalizeSections(data);
+            setHomeFeed({ sections });
 
-        setTmdbLoading(true);
-        fetch("http://localhost:8080/api/tmdb/popular")
-            .then((res) => res.json())
-            .then((data) => {
-                const arr = extractMovies(data);
-                setTmdbMovies(arr);
-                setTmdbLoading(false);
-            })
-            .catch(() => {
-                setTmdbLoading(false);
-                console.warn("❌ TMDB popüler alınamadı!");
-            });
-    }, [user]);
+            // hero önceliği
+            const pick =
+                sections.find((s) => (s.key || "").includes("for_you")) ||
+                sections.find((s) => (s.key || "").includes("from_wishlist")) ||
+                sections.find((s) => (s.key || "").includes("popular")) ||
+                sections.find((s) => (s.key || "").includes("new_releases")) ||
+                sections[0];
 
-    // Kategori satırlarını çek
-    useEffect(() => {
-        if (user === null) return;
-
-        const controller = new AbortController();
-
-        const loadGenre = async (genre, idx) => {
-            const page = 1 + Math.floor(Math.random() * 6);
-
-            setGenreSections((prev) =>
-                prev.map((s, i) => (i === idx ? { ...s, loading: true, error: null } : s))
-            );
-
-            try {
-                const items = await fetchGenreWithFallbacks(genre.id, page, controller.signal);
-                setGenreSections((prev) =>
-                    prev.map((s, i) =>
-                        i === idx
-                            ? { ...s, items: items.slice(0, 20), loading: false, error: null }
-                            : s
-                    )
-                );
-            } catch (e) {
-                if (!controller.signal.aborted) {
-                    setGenreSections((prev) =>
-                        prev.map((s, i) =>
-                            i === idx
-                                ? {
-                                    ...s,
-                                    items: [],
-                                    loading: false,
-                                    error: "Bu kategoride içerik bulunamadı."
-                                }
-                                : s
-                        )
-                    );
-                }
+            if (pick?.items?.length) {
+                setHeroMovies(pick.items.slice(0, 12));
+                setCurrentSlide(0);
+                heroFromFeedRef.current = true;
             }
-        };
+        } catch (e) {
+            console.warn("Home feed hatası:", e);
+            setHomeFeed({ sections: [] });
+        } finally {
+            setFeedLoading(false);
+        }
+    };
 
-        GENRES.forEach((g, idx) => loadGenre(g, idx));
+    /* -------------- TMDB ek vitrinler -------------- */
+    const fetchFlexible = async (candidates) => {
+        for (const u of candidates) {
+            try {
+                const r = await fetch(u);
+                if (r.ok) {
+                    const d = await r.json();
+                    const arr = extractMovies(d);
+                    if (Array.isArray(arr) && arr.length) return arr;
+                }
+            } catch {}
+        }
+        return [];
+    };
 
-        return () => controller.abort();
-    }, [user]);
+    const loadTmdbVitrins = async () => {
+        setTmdbLoading(true);
+        try {
+            // Popular
+            const popular = await fetchFlexible([
+                `${API}/api/tmdb/popular`,
+                `${API}/api/tmdb/movie/popular`,
+                `${API}/api/tmdb/movies/popular`,
+            ]);
+            setTmdbPopular(popular);
 
-    // Öneriler
+            // 4 ek bölüm
+            const extrasDefs = [
+                {
+                    key: "top_rated",
+                    title: "En Yüksek Puanlılar",
+                    urls: [
+                        `${API}/api/tmdb/top_rated`,
+                        `${API}/api/tmdb/movie/top_rated`,
+                        `${API}/api/tmdb/movies/top_rated`,
+                    ],
+                },
+                {
+                    key: "now_playing",
+                    title: "Vizyondakiler",
+                    urls: [
+                        `${API}/api/tmdb/now_playing`,
+                        `${API}/api/tmdb/movie/now_playing`,
+                        `${API}/api/tmdb/movies/now_playing`,
+                    ],
+                },
+                {
+                    key: "upcoming",
+                    title: "Yakında",
+                    urls: [
+                        `${API}/api/tmdb/upcoming`,
+                        `${API}/api/tmdb/movie/upcoming`,
+                        `${API}/api/tmdb/movies/upcoming`,
+                    ],
+                },
+                {
+                    key: "trending",
+                    title: "Gündemdekiler",
+                    urls: [
+                        `${API}/api/tmdb/trending`,
+                        `${API}/api/tmdb/trending/movie`,
+                        `${API}/api/tmdb/trending/movies`,
+                    ],
+                },
+            ];
+
+            const extras = [];
+            for (const def of extrasDefs) {
+                const arr = await fetchFlexible(def.urls);
+                if (arr.length) extras.push({ key: def.key, title: def.title, items: arr });
+            }
+            setTmdbExtra(extras);
+            // hero: kişiselden gelmediyse popülerden doldur
+            if (!heroFromFeedRef.current && !heroMovies.length && popular.length) {
+                setHeroMovies(popular.slice(0, 12));
+            }
+        } finally {
+            setTmdbLoading(false);
+        }
+    };
+
+    /* -------------- Slayt oto-geçiş -------------- */
+    useEffect(() => {
+        if (!heroMovies.length) return;
+        const id = setInterval(() => {
+            setCurrentSlide((i) => (i + 1) % heroMovies.length);
+        }, 4000);
+        return () => clearInterval(id);
+    }, [heroMovies.length]);
+
+    /* -------------- İlk Yük -------------- */
+    useEffect(() => {
+        if (user === null) return;
+        const uid = user?.id ?? user?.userId;
+        if (uid) loadHomeFeed(uid);
+        loadTmdbVitrins();
+    }, [user]); // eslint-disable-line
+
+    /* -------------- Search Suggestions -------------- */
     useEffect(() => {
         const q = searchQuery.trim();
         if (!q) {
             setSuggestions([]);
             setSuggestionsLoading(false);
-            setIsSearching(false);
-            setSearchResults([]);
-            setSearchLoading(false);
             return;
         }
-
         setSuggestionsLoading(true);
-
-        const ql = q.toLowerCase();
-        const local = (movies || [])
-            .filter((m) => (m?.title || "").toLowerCase().includes(ql))
-            .slice(0, 5)
-            .map((m) => ({
-                id: m.id ?? m.movieId ?? m.tmdbId ?? m.title,
-                title: m.title || "Film",
-                year: m.releaseYear || "",
-                poster: thumbFrom(m),
-                source: "local",
-                kind: "movie",
-                raw: m
-            }));
 
         const ac = new AbortController();
         const t = setTimeout(async () => {
             try {
-                // TMDB film araması
                 const resMovie = await fetch(
-                    `http://localhost:8080/api/tmdb/search?query=${encodeURIComponent(q)}`,
+                    `${API}/api/tmdb/search?query=${encodeURIComponent(q)}`,
                     { signal: ac.signal }
                 );
                 const dataMovie = resMovie.ok ? await resMovie.json() : null;
                 const tmdbMovies = (dataMovie ? extractMovies(dataMovie) : [])
-                    .slice(0, 6)
+                    .slice(0, 8)
                     .map((r) => ({
                         id: r.id,
                         title: r.title || r.name || "Film",
@@ -349,146 +343,131 @@ function App() {
                         poster: thumbFrom(r),
                         source: "tmdb",
                         kind: "movie",
-                        raw: r
+                        raw: r,
                     }));
 
-                // TMDB kişi araması
+                // kişi araması (opsiyonel)
                 const personCandidates = [
-                    `http://localhost:8080/api/tmdb/search/person?query=${encodeURIComponent(q)}`,
-                    `http://localhost:8080/api/tmdb/person/search?query=${encodeURIComponent(q)}`
+                    `${API}/api/tmdb/search/person?query=${encodeURIComponent(q)}`,
+                    `${API}/api/tmdb/person/search?query=${encodeURIComponent(q)}`,
                 ];
                 let dataPerson = null;
                 for (const u of personCandidates) {
                     try {
                         const r = await fetch(u, { signal: ac.signal });
-                        if (r.ok) { dataPerson = await r.json(); break; }
+                        if (r.ok) {
+                            dataPerson = await r.json();
+                            break;
+                        }
                     } catch {}
                 }
                 const personsRaw = dataPerson ? extractMovies(dataPerson) : [];
                 const tmdbPersons = personsRaw.slice(0, 6).map((p) => {
                     const dept = (p.known_for_department || "").toLowerCase();
-                    const trDept = dept === "acting" ? "Oyuncu"
-                        : dept === "directing" ? "Yönetmen"
-                            : (p.known_for_department || "Kişi");
+                    const trDept =
+                        dept === "acting" ? "Oyuncu" :
+                            dept === "directing" ? "Yönetmen" :
+                                p.known_for_department || "Kişi";
                     return {
                         id: p.id,
                         title: p.name,
                         year: trDept,
-                        poster: p.profile_path ? `https://image.tmdb.org/t/p/w185${p.profile_path}` : null,
+                        poster: p.profile_path
+                            ? `https://image.tmdb.org/t/p/w185${p.profile_path}`
+                            : null,
                         source: "tmdb",
                         kind: "person",
-                        raw: p
+                        raw: p,
                     };
                 });
 
-                setSuggestions([...local, ...tmdbMovies, ...tmdbPersons].slice(0, 12));
+                setSuggestions([...tmdbMovies, ...tmdbPersons].slice(0, 12));
             } catch {
-                setSuggestions(local);
+                setSuggestions([]);
             } finally {
                 setSuggestionsLoading(false);
             }
-        }, 300);
+        }, 250);
 
         return () => {
             ac.abort();
             clearTimeout(t);
         };
-    }, [searchQuery, movies]);
+    }, [searchQuery]);
 
-    // --- Aramayı çalıştır (çoklu fallback + alertsiz) ---
+    /* -------------- Search Run: sadece hero/öneri için modal aç -------------- */
     const runSearch = async (q) => {
         const query = (q ?? searchQuery ?? "").trim();
         if (!query) return;
 
-        setIsSearching(true);
-        setSearchLoading(true);
+        try {
+            const recoRes = await fetch(`${API}/api/reco/search?q=${encodeURIComponent(query)}`);
+            if (recoRes.ok) {
+                const recoData = await res.json();
+                const recoResults = Array.isArray(recoData) ? recoData : [];
+                if (recoResults.length > 0) {
+                    openDetail(recoResults[0]);
+                    return;
+                }
+            }
+        } catch {}
 
-        // Backend’inde farklı isimli endpoint’ler olabilir → sırayla dene
         const qs = encodeURIComponent(query);
         const candidates = [
-            // Standartlar
-            `http://localhost:8080/api/tmdb/search?query=${qs}`,
-            `http://localhost:8080/api/tmdb/search/movie?query=${qs}`,
-            `http://localhost:8080/api/tmdb/movie/search?query=${qs}`,
-            `http://localhost:8080/api/tmdb/search/multi?query=${qs}`,
-            `http://localhost:8080/api/tmdb/multi/search?query=${qs}`,
-            `http://localhost:8080/api/tmdb/searchAll?query=${qs}`,
-            `http://localhost:8080/api/tmdb/movies/search?query=${qs}`,
-            // Bazı controller’lar q paramı bekler
-            `http://localhost:8080/api/tmdb/search?q=${qs}`,
-            `http://localhost:8080/api/tmdb/movie/search?q=${qs}`,
-            `http://localhost:8080/api/tmdb/search/multi?q=${qs}`,
-            // SON ÇARE: popular çek → client’ta filtrele
-            `http://localhost:8080/api/tmdb/popular`
+            `${API}/api/tmdb/search?query=${qs}`,
+            `${API}/api/tmdb/search/movie?query=${qs}`,
+            `${API}/api/tmdb/movie/search?query=${qs}`,
+            `${API}/api/tmdb/search/multi?query=${qs}`,
+            `${API}/api/tmdb/multi/search?query=${qs}`,
+            `${API}/api/tmdb/searchAll?query=${qs}`,
+            `${API}/api/tmdb/movies/search?query=${qs}`,
+            `${API}/api/tmdb/search?q=${qs}`,
+            `${API}/api/tmdb/movie/search?q=${qs}`,
+            `${API}/api/tmdb/search/multi?q=${qs}`,
+            `${API}/api/tmdb/popular`,
         ];
 
-        let used = null;
-        let result = [];
-        for (let i = 0; i < candidates.length; i++) {
-            const url = candidates[i];
+        for (const url of candidates) {
             try {
                 const res = await fetch(url);
                 if (!res.ok) continue;
-
                 const data = await res.json();
-
+                let list = [];
                 if (url.endsWith("/popular")) {
-                    // popülerden client-side filtre
                     const all = extractMovies(data);
                     const ql = query.toLowerCase();
-                    result = all.filter(
-                        (m) =>
-                            (m.title || m.name || "")
-                                .toLowerCase()
-                                .includes(ql)
+                    list = all.filter((m) =>
+                        (m.title || m.name || "").toLowerCase().includes(ql)
                     );
                 } else {
-                    result = extractMovies(data);
+                    list = extractMovies(data);
                 }
-
-                if (Array.isArray(result)) {
-                    used = url;
-                    // Popüler fallback’te de boş olabilir; yine de kabul edelim (alert yok)
-                    break;
+                if (Array.isArray(list) && list.length) {
+                    openDetail(list[0]);
+                    return;
                 }
-            } catch (e) {
-                // denemeye devam
-            }
+            } catch {}
         }
-
-        if (!used) {
-            console.warn("🔎 Arama için uygun endpoint bulunamadı / cevap boş geldi.");
-            setSearchResults([]);
-        } else {
-            setSearchResults(result || []);
-        }
-
-        setSearchLoading(false);
-        window.scrollTo({ top: 0, behavior: "smooth" });
     };
 
-    // --- Uygulama açılışında pending/URL q kontrolü ---
+    /* -------------- URL boot search -------------- */
     useEffect(() => {
         if (bootHandledRef.current) return;
         bootHandledRef.current = true;
 
         try {
-            // 1) Header'ın bıraktığı pending URL varsa ona git
             const pending = localStorage.getItem("wm_pending_search_url");
             if (pending) {
                 localStorage.removeItem("wm_pending_search_url");
                 window.location.assign(pending);
-                return; // yönleniyoruz
+                return;
             }
         } catch {}
 
-        // 2) Sayfa URL'inde q varsa otomatik arama
         try {
             const url = new URL(window.location.href);
             let q = url.searchParams.get("q");
-
             if (!q) {
-                // Hash modunda '#/search?q=...' gibi olabilir
                 const hash = url.hash || "";
                 const qIndex = hash.indexOf("?");
                 if (qIndex !== -1) {
@@ -496,65 +475,26 @@ function App() {
                     q = sp.get("q");
                 }
             }
-
             if (q && q.trim()) {
                 setView("home");
                 setSearchQuery(q);
-                // Aynı tikte aramayı tetikle
                 setTimeout(() => runSearch(q), 0);
             }
         } catch {}
-    }, []);
+    }, []); // eslint-disable-line
 
-    // --- Kişiye göre arama ---
-    const runSearchByPerson = async (personId, personName) => {
-        if (!personId) return;
-        setIsSearching(true);
-        setSearchLoading(true);
-        try {
-            const candidates = [
-                `http://localhost:8080/api/tmdb/person/${personId}/combined_credits`,
-                `http://localhost:8080/api/tmdb/person/${personId}/movie_credits`,
-                `http://localhost:8080/api/tmdb/person/${personId}/credits`,
-            ];
-            let data = null;
-            for (const u of candidates) {
-                try {
-                    const r = await fetch(u);
-                    if (r.ok) { data = await r.json(); break; }
-                } catch {}
-            }
-            const cast = Array.isArray(data?.cast) ? data.cast : [];
-            const crew = Array.isArray(data?.crew) ? data.crew : [];
-            const directing = crew.filter(c => c.job === "Director" || c.department === "Directing");
-            const all = [...cast, ...directing];
-
-            const map = new Map();
-            for (const it of all) {
-                const id = it.id;
-                if (!id) continue;
-                if (!map.has(id)) map.set(id, it);
-            }
-            const list = Array.from(map.values());
-            setSearchResults(list);
-            if (personName) setSearchQuery(personName);
-        } catch (e) {
-            console.warn("❌ Kişi film bilgileri alınamadı!", e);
-            setSearchResults([]);
-        } finally {
-            setSearchLoading(false);
-            window.scrollTo({ top: 0, behavior: "smooth" });
-        }
+    /* -------------- UI handlers -------------- */
+    const openDetail = (movie) => {
+        if (!movie) return;
+        setDetailMovie(movie);
+        setDetailOpen(true);
     };
 
     const handleSearch = (qFromHeader) => {
         const query = (qFromHeader ?? searchQuery ?? "").trim();
         if (!query) return;
-
         const inProfile = view === "profile" || window.location.hash === "#profile";
-
         if (inProfile) {
-            // 1) Profile'deysek önce Home görünümü
             setView("home");
             try {
                 window.history.replaceState(
@@ -563,27 +503,20 @@ function App() {
                     window.location.pathname + window.location.search
                 );
             } catch {}
-
-            // 2) Aynı tikte aramayı çalıştır ve parent inputunu temizle
             setTimeout(() => {
                 runSearch(query);
-                setSearchQuery("");   // ✅ Enter’dan sonra input sıfırlansın
+                setSearchQuery("");
             }, 0);
             return;
         }
-
-        // Home'daysak direkt ara ve sonra temizle
         runSearch(query);
-        setSearchQuery("");       // ✅ Enter’dan sonra input sıfırlansın
+        setSearchQuery("");
     };
-
 
     const handlePickSuggestion = async (sugg) => {
         if (!sugg) return;
-
         const inProfile = view === "profile" || window.location.hash === "#profile";
         if (inProfile) {
-            // Home'a al ve aynı tikte ilgili aramayı çalıştır
             setView("home");
             try {
                 window.history.replaceState(
@@ -592,44 +525,36 @@ function App() {
                     window.location.pathname + window.location.search
                 );
             } catch {}
-
-            setTimeout(() => {
-                if (sugg.kind === "person") {
-                    runSearchByPerson(sugg.id, sugg.title);
-                } else {
-                    const q = sugg.title || "";
-                    setSearchQuery(q);
-                    runSearch(q);
-                }
-            }, 0);
+            setTimeout(() => openDetail(sugg.raw || sugg), 0);
             return;
         }
+        openDetail(sugg.raw || sugg);
+    };
 
-        if (sugg.kind === "person") {
-            await runSearchByPerson(sugg.id, sugg.title);
-            return;
+    // slayt tıklama → senin modal (App-level)
+    const handleSlideClick = (movie) => openDetail(movie);
+
+    const refreshUserVector = async () => {
+        if (!userId) return;
+        try {
+            const res = await fetch(`${API}/api/match/refresh/${userId}`, { method: "POST" });
+            if (res.ok) console.log("Kullanıcı vektörü yenilendi");
+            matchRailRef.current?.refresh?.();
+            loadHomeFeed(userId);
+        } catch (e) {
+            console.warn("Vektör yenileme hatası:", e);
         }
-        const q = sugg.title || "";
-        setSearchQuery(q);
-        await runSearch(q);
     };
 
-    // Kart tıklanınca hero görselini güncelle
-    const handleMovieClick = (movie) => {
-        setLastClickedFilm(movie);
-    };
-
-    // Çıkış
     const handleLogout = () => {
         try {
             localStorage.removeItem("wm_user");
         } catch {}
         setUser(null);
         setView("home");
-        setIsSearching(false);
-        setSearchResults([]);
-        setSearchQuery("");
         setLastClickedFilm(null);
+        setHomeFeed({ sections: [] });
+        setHeroMovies([]);
         try {
             window.history.replaceState(
                 { view: "home" },
@@ -639,7 +564,7 @@ function App() {
         } catch {}
     };
 
-    // Login/Register
+    /* -------------- Auth gates -------------- */
     if (user === null) {
         return (
             <AuthForm
@@ -653,8 +578,6 @@ function App() {
             />
         );
     }
-
-    // Profil sayfası
     if (view === "profile") {
         return (
             <>
@@ -672,7 +595,7 @@ function App() {
                 />
                 <ProfilePage
                     user={user}
-                    userId={user?.id ?? user?.userId}
+                    userId={userId}
                     wishlist={wishlist}
                     watchedlist={watchedlist}
                     onBack={goToHome}
@@ -687,25 +610,38 @@ function App() {
         );
     }
 
-    const heroBackgroundImage = lastClickedFilm ? getBackdropImage(lastClickedFilm) : null;
+    /* -------------- Hero BG -------------- */
+    const bgCandidate = heroMovies[currentSlide] || lastClickedFilm || tmdbPopular[0] || null;
+    const heroBackgroundImage = bgCandidate ? getBackdropImage(bgCandidate) : null;
     const heroBgStyle = heroBackgroundImage
         ? {
-            backgroundImage: `linear-gradient(135deg, rgba(0,0,0,.7), rgba(0,0,0,.5)), url(${heroBackgroundImage})`,
-            backgroundSize: "cover, cover",
-            backgroundPosition: "center center, center center",
-            backgroundRepeat: "no-repeat, no-repeat"
+            backgroundImage: `linear-gradient(135deg, rgba(0,0,0,0.7), rgba(0,0,0,0.4)), url(${heroBackgroundImage})`,
+            backgroundSize: "cover",
+            backgroundPosition: "center center",
+            backgroundRepeat: "no-repeat",
+            transition: "background-image 1s ease-in-out",
         }
         : {
-            backgroundImage:
-                "linear-gradient(135deg, rgba(0,0,0,.7), rgba(0,0,0,.5)), linear-gradient(135deg, #1a2332, #0f1419)",
-            backgroundSize: "cover, cover",
-            backgroundPosition: "center center, center center",
-            backgroundRepeat: "no-repeat, no-repeat"
+            background: "linear-gradient(135deg, #1a2332 0%, #0f1419 50%, #2d1b69 100%)",
         };
 
-    // Ana sayfa + Arama modu
+    /* -------------- Render -------------- */
     return (
         <div>
+            {/* Local styles */}
+            <style>{`
+        @keyframes gradientShift {
+          0% { filter: hue-rotate(0deg); }
+          50% { filter: hue-rotate(40deg); }
+          100% { filter: hue-rotate(0deg); }
+        }
+        .wm-hero-dot{width:10px;height:10px;border-radius:999px;border:1px solid rgba(255,255,255,.6);opacity:.7;transition:transform .2s ease}
+        .wm-hero-dot.active{background:#fff;opacity:1;transform:scale(1.1)}
+        .wm-ghost-btn{padding:10px 14px;border-radius:12px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.06);color:#fff;cursor:pointer;backdrop-filter:blur(6px)}
+        .wm-ghost-btn:hover{background:rgba(255,255,255,0.14)}
+        .wm-slide-card:hover{transform:scale(1.03);box-shadow:0 28px 70px rgba(0,0,0,.55)}
+      `}</style>
+
             <Header
                 user={user}
                 searchQuery={searchQuery}
@@ -720,207 +656,382 @@ function App() {
             />
 
             <main style={mainContentStyle}>
-                {isSearching ? (
-                    // SADECE ARAMA SONUÇLARI
-                    <section>
-                        <div style={sectionHeaderStyle}>
-                            <h2 style={sectionTitleStyle}>🔍 Arama Sonuçları</h2>
-                            {searchQuery && <div style={{ opacity: 0.8 }}>“{searchQuery}”</div>}
-                        </div>
-                        {searchLoading ? (
-                            <p
+                <div style={containerStyle}>
+                    {/* Hero */}
+                    <section
+                        style={{
+                            position: "relative",
+                            height: "75vh",
+                            borderRadius: "20px",
+                            overflow: "hidden",
+                            marginBottom: "60px",
+                            ...heroBgStyle,
+                            boxShadow: "0 20px 40px rgba(0,0,0,0.3)",
+                        }}
+                    >
+                        {/* overlay */}
+                        <div
+                            style={{
+                                position: "absolute",
+                                inset: 0,
+                                background:
+                                    "linear-gradient(135deg, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.3) 50%, rgba(0,0,0,0.8) 100%)",
+                                zIndex: 1,
+                            }}
+                        />
+                        {/* Sol */}
+                        <div
+                            style={{
+                                position: "absolute",
+                                top: 0,
+                                left: 0,
+                                width: "55%",
+                                height: "100%",
+                                display: "flex",
+                                flexDirection: "column",
+                                justifyContent: "center",
+                                padding: "60px",
+                                zIndex: 2,
+                            }}
+                        >
+                            <div
                                 style={{
-                                    textAlign: "center",
-                                    padding: "60px 20px",
-                                    color: "rgba(255,255,255,0.6)",
-                                    fontSize: "1.1rem"
+                                    background: "rgba(0,0,0,0.1)",
+                                    backdropFilter: "blur(10px)",
+                                    borderRadius: "20px",
+                                    padding: "40px",
+                                    border: "1px solid rgba(255,255,255,0.1)",
                                 }}
                             >
-                                ⏳ Aranıyor...
-                            </p>
-                        ) : (
+                                <h1
+                                    style={{
+                                        fontSize: "4rem",
+                                        fontWeight: "bold",
+                                        marginBottom: "20px",
+                                        background: "linear-gradient(45deg, #ff6b6b, #4ecdc4, #45b7d1)",
+                                        backgroundSize: "300% 300%",
+                                        WebkitBackgroundClip: "text",
+                                        WebkitTextFillColor: "transparent",
+                                        backgroundClip: "text",
+                                        animation: "gradientShift 3s ease-in-out infinite",
+                                        textShadow: "0 0 30px rgba(255,107,107,0.3)",
+                                    }}
+                                >
+                                    WatchMatch
+                                </h1>
+
+                                <p
+                                    style={{
+                                        fontSize: "1.15rem",
+                                        color: "rgba(255,255,255,0.9)",
+                                        marginBottom: "24px",
+                                        lineHeight: 1.6,
+                                    }}
+                                >
+                                    Film Review &amp; Movie Database Application
+                                </p>
+
+                                <div style={{ display: "flex", gap: 12 }}>
+                                    <button onClick={refreshUserVector} className="wm-ghost-btn">
+                                        Vektörü Güncelle
+                                    </button>
+                                </div>
+
+                                {/* Best match */}
+                                <div style={{ marginTop: 18, maxWidth: 420 }}>
+                                    <BestMatchCard userId={userId} sameCountryOnly={false} />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Sağ – Slayt */}
+                        <div
+                            style={{
+                                position: "absolute",
+                                right: 0,
+                                top: 0,
+                                width: "45%",
+                                height: "100%",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                padding: "40px",
+                                zIndex: 2,
+                            }}
+                        >
+                            {heroMovies[currentSlide] && (
+                                <div
+                                    role="button"
+                                    onClick={() => handleSlideClick(heroMovies[currentSlide])}
+                                    title={`${getTitle(heroMovies[currentSlide])} • detay`}
+                                    className="wm-slide-card"
+                                    style={{
+                                        width: "58%",
+                                        minWidth: 260,
+                                        aspectRatio: "2/3",
+                                        borderRadius: 18,
+                                        overflow: "hidden",
+                                        position: "relative",
+                                        cursor: "pointer",
+                                        boxShadow: "0 25px 60px rgba(0,0,0,0.45)",
+                                        border: "1px solid rgba(255,255,255,0.12)",
+                                        background: "rgba(0,0,0,0.25)",
+                                        transform: "translateZ(0)",
+                                        transition: "transform .35s ease, box-shadow .35s ease",
+                                    }}
+                                >
+                                    <img
+                                        src={
+                                            getHighQualityPoster(heroMovies[currentSlide]) ||
+                                            thumbFrom(heroMovies[currentSlide])
+                                        }
+                                        alt={getTitle(heroMovies[currentSlide])}
+                                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                                    />
+
+                                    {/* bilgi overlay */}
+                                    <div
+                                        style={{
+                                            position: "absolute",
+                                            left: 0,
+                                            right: 0,
+                                            bottom: 0,
+                                            padding: "16px 16px 14px",
+                                            background:
+                                                "linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,.55) 35%, rgba(0,0,0,.85) 100%)",
+                                            color: "#fff",
+                                            display: "flex",
+                                            flexDirection: "column",
+                                            gap: 8,
+                                        }}
+                                    >
+                                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                            {getVote(heroMovies[currentSlide]) !== null && (
+                                                <span
+                                                    style={{
+                                                        fontSize: 12,
+                                                        padding: "4px 8px",
+                                                        borderRadius: 999,
+                                                        background: "rgba(255,255,255,.12)",
+                                                        border: "1px solid rgba(255,255,255,.18)",
+                                                        backdropFilter: "blur(6px)",
+                                                    }}
+                                                >
+                          ★ {getVote(heroMovies[currentSlide])}
+                        </span>
+                                            )}
+                                            {!!getYear(heroMovies[currentSlide]) && (
+                                                <span
+                                                    style={{
+                                                        fontSize: 12,
+                                                        padding: "4px 8px",
+                                                        borderRadius: 999,
+                                                        background: "rgba(255,255,255,.12)",
+                                                        border: "1px solid rgba(255,255,255,.18)",
+                                                        backdropFilter: "blur(6px)",
+                                                    }}
+                                                >
+                          {getYear(heroMovies[currentSlide])}
+                        </span>
+                                            )}
+                                        </div>
+
+                                        <h3
+                                            style={{
+                                                margin: 0,
+                                                fontSize: "1.15rem",
+                                                fontWeight: 700,
+                                                lineHeight: 1.25,
+                                                textShadow: "0 2px 12px rgba(0,0,0,.7)",
+                                            }}
+                                        >
+                                            {getTitle(heroMovies[currentSlide])}
+                                        </h3>
+
+                                        <div style={{ display: "flex", gap: 10 }}>
+                                            <button
+                                                className="wm-ghost-btn"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleSlideClick(heroMovies[currentSlide]);
+                                                }}
+                                            >
+                                                Detayları Gör
+                                            </button>
+                                            <button
+                                                className="wm-ghost-btn"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setLastClickedFilm(heroMovies[currentSlide]);
+                                                }}
+                                                title="Arkaplan yap"
+                                            >
+                                                Arkaplan Yap
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* oklar */}
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setCurrentSlide((i) => (i === 0 ? heroMovies.length - 1 : i - 1));
+                                        }}
+                                        className="wm-ghost-btn"
+                                        style={{
+                                            position: "absolute",
+                                            top: "50%",
+                                            left: -12,
+                                            transform: "translateY(-50%)",
+                                        }}
+                                        aria-label="Önceki"
+                                    >
+                                        ‹
+                                    </button>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setCurrentSlide((i) => (i + 1) % heroMovies.length);
+                                        }}
+                                        className="wm-ghost-btn"
+                                        style={{
+                                            position: "absolute",
+                                            top: "50%",
+                                            right: -12,
+                                            transform: "translateY(-50%)",
+                                        }}
+                                        aria-label="Sonraki"
+                                    >
+                                        ›
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* dots */}
+                        {heroMovies.length > 1 && (
+                            <div
+                                style={{
+                                    position: "absolute",
+                                    bottom: 18,
+                                    left: "55%",
+                                    right: 40,
+                                    display: "flex",
+                                    gap: 6,
+                                    justifyContent: "center",
+                                    zIndex: 3,
+                                }}
+                            >
+                                {heroMovies.map((m, idx) => (
+                                    <div
+                                        key={idx}
+                                        className={`wm-hero-dot ${idx === currentSlide ? "active" : ""}`}
+                                        onClick={() => setCurrentSlide(idx)}
+                                        style={{ cursor: "pointer" }}
+                                        title={getTitle(m)}
+                                    />
+                                ))}
+                            </div>
+                        )}
+                    </section>
+                    {/* Eşleşmeler – kullanıcılar (hero’nun hemen altı) */}
+                    <section id="matches" style={{ marginTop: 12 }}>
+                        <div style={{ ...sectionHeaderStyle, marginBottom: 10 }}>
+                            <h2 style={{ ...sectionTitleStyle, margin: 0 }}>Senin İçin Eşleşmeler</h2>
+                        </div>
+
+                        {/* Profesyonel görünüm: scrollbar gizle + sıkı boşluklar */}
+                        <div className="wm-rail-polish">
+                            <MatchUsersRail
+                                userId={userId}
+                                defaultLimit={20}
+                                defaultSameCountry={true}
+                                ref={matchRailRef}
+                            />
+                        </div>
+                    </section>
+
+                    {/* Backend Home Feed Bölümleri (kişisel) */}
+                    {feedLoading ? (
+                        <p
+                            style={{
+                                textAlign: "center",
+                                padding: "60px 20px",
+                                color: "rgba(255,255,255,0.6)",
+                                fontSize: "1.05rem",
+                            }}
+                        >
+                            ⏳ Sana özel içerikler yükleniyor...
+                        </p>
+                    ) : Array.isArray(homeFeed?.sections) && homeFeed.sections.length > 0 ? (
+                        homeFeed.sections.map((sec) => (
+                            <section key={sec.key || sec.title}>
+                                <div style={sectionHeaderStyle}>
+                                    <h2 style={sectionTitleStyle}>{sec.title}</h2>
+                                </div>
+                                <MovieGrid
+                                    items={sec.items || []}
+                                    userId={userId}
+                                    onAddWishlist={(m) =>
+                                        setWishlist((s) => (s.some((x) => x.id === m.id) ? s : [...s, m]))
+                                    }
+                                    onAddWatched={(m) =>
+                                        setWatchedlist((s) => (s.some((x) => x.id === m.id) ? s : [...s, m]))
+                                    }
+                                    emptyText="Bu bölümde içerik bulunamadı"
+                                    // ÖNEMLİ: onMovieClick YOK! Kartlar kendi modalını açsın.
+                                />
+                            </section>
+                        ))
+                    ) : null}
+
+                    {/* TMDB Popüler (ek vitrin) */}
+                    <section>
+                        <div style={sectionHeaderStyle}>
+                            <h2 style={sectionTitleStyle}>Popüler Filmler</h2>
+                        </div>
+                        <MovieGrid
+                            items={tmdbPopular}
+                            userId={userId}
+                            onAddWishlist={(m) =>
+                                setWishlist((s) => (s.some((x) => x.id === m.id) ? s : [...s, m]))
+                            }
+                            onAddWatched={(m) =>
+                                setWatchedlist((s) => (s.some((x) => x.id === m.id) ? s : [...s, m]))
+                            }
+                            // onMovieClick YOK
+                        />
+                    </section>
+
+                    {/* 4 ek vitrin: sayfa çabuk bitmesin */}
+                    {tmdbExtra.map((sec) => (
+                        <section key={sec.key}>
+                            <div style={sectionHeaderStyle}>
+                                <h2 style={sectionTitleStyle}>{sec.title}</h2>
+                            </div>
                             <MovieGrid
-                                items={searchResults}
-                                fromTmdb
+                                items={sec.items}
+                                userId={userId}
                                 onAddWishlist={(m) =>
                                     setWishlist((s) => (s.some((x) => x.id === m.id) ? s : [...s, m]))
                                 }
                                 onAddWatched={(m) =>
                                     setWatchedlist((s) => (s.some((x) => x.id === m.id) ? s : [...s, m]))
                                 }
-                                userId={userId}
-                                emptyText="Sonuç bulunamadı"
-                                onMovieClick={handleMovieClick}
                             />
-                        )}
-                    </section>
-                ) : (
-                    // NORMAL ANA SAYFA
-                    <div style={containerStyle}>
-                        {/* Hero */}
-                        <section
-                            style={{
-                                position: "relative",
-                                height: "50vh",
-                                display: "flex",
-                                alignItems: "center",
-                                marginBottom: "60px",
-                                borderRadius: "15px",
-                                overflow: "hidden",
-                                ...heroBgStyle
-                            }}
-                        >
-                            <div style={{ maxWidth: "600px", padding: "40px", zIndex: 2 }}>
-                                <h1
-                                    style={{
-                                        fontSize: "3.5rem",
-                                        fontWeight: "bold",
-                                        marginBottom: "20px",
-                                        background: "linear-gradient(45deg, #dc2626, #ff6b6b)",
-                                        WebkitBackgroundClip: "text",
-                                        WebkitTextFillColor: "transparent",
-                                        backgroundClip: "text",
-                                        textShadow: "2px 2px 4px rgba(0,0,0,0.5)"
-                                    }}
-                                >
-                                    WatchMatch
-                                </h1>
-                                <p
-                                    style={{
-                                        fontSize: "1.2rem",
-                                        color: "rgba(255, 255, 255, 0.9)",
-                                        marginBottom: "30px",
-                                        lineHeight: "1.6",
-                                        textShadow: "1px 1px 2px rgba(0,0,0,0.8)"
-                                    }}
-                                >
-                                    Film Review & Movie Database Application
-                                </p>
-                                {lastClickedFilm && (
-                                    <div
-                                        style={{
-                                            fontSize: "0.9rem",
-                                            color: "rgba(255, 255, 255, 0.7)",
-                                            textShadow: "1px 1px 2px rgba(0,0,0,0.8)"
-                                        }}
-                                    >
-                                        Son bakılan: {lastClickedFilm.title || lastClickedFilm.name}
-                                    </div>
-                                )}
-                            </div>
                         </section>
-
-                        {/* TMDB Popüler */}
-                        <section>
-                            <div style={sectionHeaderStyle}>
-                                <h2 style={sectionTitleStyle}>Popüler Filmler</h2>
-                            </div>
-                            {tmdbLoading ? (
-                                <p
-                                    style={{
-                                        textAlign: "center",
-                                        padding: "60px 20px",
-                                        color: "rgba(255, 255, 255, 0.6)",
-                                        fontSize: "1.1rem"
-                                    }}
-                                >
-                                    ⏳ Yükleniyor...
-                                </p>
-                            ) : (
-                                <MovieGrid
-                                    items={tmdbMovies}
-                                    fromTmdb
-                                    onAddWishlist={(m) =>
-                                        setWishlist((s) => (s.some((x) => x.id === m.id) ? s : [...s, m]))
-                                    }
-                                    onAddWatched={(m) =>
-                                        setWatchedlist((s) => (s.some((x) => x.id === m.id) ? s : [...s, m]))
-                                    }
-                                    userId={userId}
-                                    onMovieClick={handleMovieClick}
-                                />
-                            )}
-                        </section>
-
-                        {/* KATEGORİ SATIRLARI */}
-                        {genreSections.map((sec) => (
-                            <section key={sec.id}>
-                                <div style={sectionHeaderStyle}>
-                                    <h2 style={sectionTitleStyle}>{sec.name}</h2>
-                                </div>
-                                {sec.loading ? (
-                                    <p
-                                        style={{
-                                            textAlign: "center",
-                                            padding: "40px 20px",
-                                            color: "rgba(255,255,255,0.6)"
-                                        }}
-                                    >
-                                        ⏳ Yükleniyor...
-                                    </p>
-                                ) : sec.error ? (
-                                    <p
-                                        style={{
-                                            textAlign: "center",
-                                            padding: "20px",
-                                            color: "rgba(255,255,255,0.7)"
-                                        }}
-                                    >
-                                        {sec.error}
-                                    </p>
-                                ) : (
-                                    <MovieGrid
-                                        items={sec.items}
-                                        fromTmdb
-                                        onAddWishlist={(m) =>
-                                            setWishlist((s) => (s.some((x) => x.id === m.id) ? s : [...s, m]))
-                                        }
-                                        onAddWatched={(m) =>
-                                            setWatchedlist((s) => (s.some((x) => x.id === m.id) ? s : [...s, m]))
-                                        }
-                                        userId={userId}
-                                        emptyText="Bu kategoride film bulunamadı"
-                                        onMovieClick={handleMovieClick}
-                                    />
-                                )}
-                            </section>
-                        ))}
-
-                        {/* Veritabanındaki filmler */}
-                        <section>
-                            <div style={sectionHeaderStyle}>
-                                <h2 style={sectionTitleStyle}>🎥 Film Listesi</h2>
-                            </div>
-                            {loading ? (
-                                <p
-                                    style={{
-                                        textAlign: "center",
-                                        padding: "60px 20px",
-                                        color: "rgba(255,255,255,0.6)",
-                                        fontSize: "1.1rem"
-                                    }}
-                                >
-                                    ⏳ Yükleniyor...
-                                </p>
-                            ) : (
-                                <MovieGrid
-                                    items={movies}
-                                    emptyText="Hiç film bulunamadı"
-                                    onAddWishlist={(m) =>
-                                        setWishlist((s) => (s.some((x) => x.id === m.id) ? s : [...s, m]))
-                                    }
-                                    onAddWatched={(m) =>
-                                        setWatchedlist((s) => (s.some((x) => x.id === m.id) ? s : [...s, m]))
-                                    }
-                                    userId={userId}
-                                    onMovieClick={handleMovieClick}
-                                />
-                            )}
-                        </section>
-
-                    </div>
-                )}
+                    ))}
+                </div>
             </main>
+
+            {/* Movie Detail Modal — sadece HERO/ÖNERİ tıklamalarında */}
+            <MovieDetailModal
+                open={detailOpen}
+                onClose={() => setDetailOpen(false)}
+                movie={detailMovie}
+                fromTmdb={Boolean(detailMovie && (detailMovie.backdrop_path || detailMovie.poster_path))}
+                userId={userId}
+            />
         </div>
     );
 }

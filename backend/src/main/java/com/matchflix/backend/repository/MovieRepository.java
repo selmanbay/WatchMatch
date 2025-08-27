@@ -1,6 +1,7 @@
 package com.matchflix.backend.repository;
 
 import com.matchflix.backend.model.Movie;
+import com.matchflix.backend.model.MovieList;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -44,10 +45,19 @@ public interface MovieRepository extends JpaRepository<Movie, Long> {
 
     Optional<Movie> findByTmdbId(Long tmdbId);
 
+    List<Movie> findByTmdbIdIn(Collection<Long> tmdbIds);
     @Query("""
         select m from Movie m
         left join fetch m.genres
         where m.id = :id
     """)
     Optional<Movie> findByIdWithGenres(@Param("id") Long id);
+
+    List<Movie> findByTmdbIdIn(List<Long> tmdbIds);
+
+    // En çok puan alan 50 film (rating -> DESC, skor eşitliklerinde id -> DESC)
+    List<Movie> findTop50ByOrderByRatingDescIdDesc();
+
+    // En yeni 50 film (releaseYear -> DESC, eşitlikte id -> DESC)
+    List<Movie> findTop50ByOrderByReleaseYearDescIdDesc();
 }
