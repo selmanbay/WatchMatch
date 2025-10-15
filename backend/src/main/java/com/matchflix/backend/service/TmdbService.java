@@ -12,11 +12,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 @Service
 public class TmdbService {
@@ -39,7 +39,35 @@ public class TmdbService {
         this.featuresRepo = featuresRepo;
     }
 
-    /** Basit DTO — import servisinde kullanacaksın. */
+    /** ------- Yardımcılar ------- */
+
+    private String buildUrl(String path, Map<String, String> qp) {
+        UriComponentsBuilder b = UriComponentsBuilder.fromHttpUrl(baseUrl + path)
+                .queryParam("api_key", apiKey);
+
+        // language default: tr-TR (yoksa)
+        if (qp == null) qp = new HashMap<>();
+        qp.putIfAbsent("language", "tr-TR");
+
+        for (var e : qp.entrySet()) {
+            if (e.getValue() != null && !e.getValue().isBlank()) {
+                b.queryParam(e.getKey(), e.getValue());
+            }
+        }
+        return b.build(true).toUriString();
+    }
+
+    private String get(String url) {
+        return rest.getForObject(url, String.class);
+    }
+
+    private String enc(String s) {
+        try { return URLEncoder.encode(s, StandardCharsets.UTF_8); }
+        catch (Exception e) { return s; }
+    }
+
+    /** ------- Mevcut DTO/metodlar (dokunulmadı) ------- */
+
     public static class TmdbMovieDto {
         private Long id;
         private String title;
@@ -49,7 +77,6 @@ public class TmdbService {
         private String overview;
         private List<Long> genreIds;
 
-        // getters/setters
         public Long getId() { return id; }
         public void setId(Long id) { this.id = id; }
         public String getTitle() { return title; }
@@ -66,14 +93,12 @@ public class TmdbService {
         public void setGenreIds(List<Long> genreIds) { this.genreIds = genreIds; }
     }
 
-    /** Tek film detayını çeker */
     public TmdbMovieDto fetchMovie(Long tmdbId) {
         String url = String.format("%s/movie/%d?api_key=%s&language=en-US", baseUrl, tmdbId, apiKey);
         ResponseEntity<String> resp = rest.getForEntity(url, String.class);
         if (!resp.getStatusCode().is2xxSuccessful()) {
             throw new IllegalStateException("TMDb error (details): " + resp.getStatusCode());
         }
-
         try {
             JsonNode root = om.readTree(resp.getBody());
             TmdbMovieDto dto = new TmdbMovieDto();
@@ -102,9 +127,6 @@ public class TmdbService {
         }
     }
 
-    /**
-     * credits + keywords + overview tek seferde çekip features upsert eder.
-     */
     @Transactional
     public void upsertFeatures(Movie movie, Long tmdbId) {
         String url = String.format(
@@ -119,7 +141,6 @@ public class TmdbService {
         try {
             JsonNode root = om.readTree(resp.getBody());
 
-            // Directors
             List<String> directorNames = new ArrayList<>();
             List<Long> directorIds = new ArrayList<>();
             for (JsonNode crew : root.path("credits").path("crew")) {
@@ -129,7 +150,6 @@ public class TmdbService {
                 }
             }
 
-            // Top cast (ilk 10)
             List<String> actorNames = new ArrayList<>();
             List<Long> actorIds = new ArrayList<>();
             int cap = 0;
@@ -139,7 +159,6 @@ public class TmdbService {
                 if (++cap >= 10) break;
             }
 
-            // Keywords
             List<String> keywords = new ArrayList<>();
             JsonNode kwNode = root.path("keywords").path("keywords");
             if (kwNode.isMissingNode()) kwNode = root.path("keywords").path("results");
@@ -150,13 +169,6 @@ public class TmdbService {
             }
 
             String overview = root.path("overview").asText(null);
-
-            // JSON string olarak sakla
-            String dirNamesJson = om.writeValueAsString(directorNames);
-            String dirIdsJson   = om.writeValueAsString(directorIds);
-            String actNamesJson = om.writeValueAsString(actorNames);
-            String actIdsJson   = om.writeValueAsString(actorIds);
-            String keywordsJson = om.writeValueAsString(keywords);
 
             MovieFeatures mf = featuresRepo.findById(movie.getId()).orElseGet(() -> {
                 MovieFeatures x = new MovieFeatures();
@@ -178,25 +190,66 @@ public class TmdbService {
         }
     }
 
-    /* ---- Popular & Search ---- */
+    /** ------- Yeni: Liste/arama/raw çağrılar ------- */
 
-    public String getPopularMovies() {
-        String url = String.format("%s/movie/popular?api_key=%s&language=en-US&page=1", baseUrl, apiKey);
-        return rest.getForObject(url, String.class);
+    public String getPopularMovies(String page, String language) {
+        var qp = new HashMap<String, String>();
+        qp.put("page", page);
+        qp.put("language", language);
+        return get(buildUrl("/movie/popular", qp));
     }
 
-    public String searchMovies(String query) {
-        String url = String.format(
-                "%s/search/movie?api_key=%s&language=en-US&query=%s&page=1&include_adult=false",
-                baseUrl, apiKey, encode(query));
-        return rest.getForObject(url, String.class);
+    public String searchMovies(String query, String page, String language) {
+        var qp = new HashMap<String, String>();
+        qp.put("query", enc(query));
+        qp.put("page", page);
+        qp.put("language", language);
+        qp.put("include_adult", "false");
+        return get(buildUrl("/search/movie", qp));
     }
 
-    private String encode(String s) {
-        try {
-            return URLEncoder.encode(s, StandardCharsets.UTF_8);
-        } catch (Exception e) {
-            return s;
-        }
+    public String getTopRated(String page, String language) {
+        var qp = Map.of("page", page, "language", language);
+        return get(buildUrl("/movie/top_rated", new HashMap<>(qp)));
+    }
+
+    public String getNowPlaying(String page, String language) {
+        var qp = Map.of("page", page, "language", language);
+        return get(buildUrl("/movie/now_playing", new HashMap<>(qp)));
+    }
+
+    public String getUpcoming(String page, String language) {
+        var qp = Map.of("page", page, "language", language);
+        return get(buildUrl("/movie/upcoming", new HashMap<>(qp)));
+    }
+
+    public String getTrending(String window, String page, String language) {
+        var w = "week".equalsIgnoreCase(window) ? "week" : "day";
+        var qp = new HashMap<String, String>();
+        qp.put("page", page);
+        qp.put("language", language);
+        return get(buildUrl("/trending/movie/" + w, qp));
+    }
+
+    public String discover(Map<String, String> params) {
+        // varsayılanlar:
+        var qp = new HashMap<String, String>(params != null ? params : Map.of());
+        qp.putIfAbsent("page", "1");
+        qp.putIfAbsent("language", "tr-TR");
+        qp.putIfAbsent("sort_by", "popularity.desc");
+        // gelen tüm query’leri TMDB’ye aktarır
+        return get(buildUrl("/discover/movie", qp));
+    }
+
+    public String getMovieRaw(long id, Map<String, String> params) {
+        var qp = new HashMap<String, String>(params != null ? params : Map.of());
+        // ör: append_to_response=credits,keywords desteklenir
+        return get(buildUrl("/movie/" + id, qp));
+    }
+
+    public String getCredits(long id, String language) {
+        var qp = new HashMap<String, String>();
+        qp.put("language", language);
+        return get(buildUrl("/movie/" + id + "/credits", qp));
     }
 }

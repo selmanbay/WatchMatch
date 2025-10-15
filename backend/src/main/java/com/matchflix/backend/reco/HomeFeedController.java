@@ -14,9 +14,12 @@ public class HomeFeedController {
         this.home = home;
     }
 
+    // HomeFeedController.java
     @GetMapping("/home")
     public HomeFeedDto home(@RequestParam(required = false) Long userId,
                             @RequestParam(defaultValue = "20") int perSection) {
+        System.out.println("[reco/home] userId=" + userId + " perSection=" + perSection);
         return home.buildHome(userId, perSection);
     }
+
 }

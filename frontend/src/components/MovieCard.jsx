@@ -1,40 +1,36 @@
 // src/components/MovieCard.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, memo } from "react";
 import {
-    movieCardWrapStyle,   // poster + caption sarmalayıcı
-    movieCardStyle,       // posterin bulunduğu asıl kart
+    movieCardWrapStyle,     // poster + caption sarmalayıcı
+    movieCardStyle,         // posterin bulunduğu asıl kart
     moviePosterStyle,
     addToListHoverBtnStyle,
     statusWrapStyle,
     statusBadgeStyle,
     ribbonWrapStyle,
-    movieCaptionStyle      // başlık (kartın altında)
+    movieCaptionStyle       // başlık (kartın altında)
 } from "../styles/ui";
 import { pickPoster } from "../utils/images";   // ✅ poster normalizer
 import ListPicker from "./ListPicker";          // 🎞️ Film Listesi paneli
 import { ThumbsUp, ThumbsDown } from "lucide-react"; // 👍👎 ikonlar
 
-export default function MovieCard({
-                                      movie,
-                                      fromTmdb,
-                                      isWatched,           // opsiyonel: parent state
-                                      isInWishlist,        // opsiyonel: parent state
-                                      onOpenDetail,        // opsiyonel: karta tıklayınca detay aç
-                                      userId               // 🎯 Film listeleri için gerekli
-                                  }) {
+const MovieCard = ({
+                       movie,
+                       fromTmdb,               // opsiyonel önden bilgi (yoksa içerden hesaplayacağız)
+                       isWatched,              // opsiyonel: parent state
+                       isInWishlist,           // opsiyonel: parent state
+                       onOpenDetail,           // opsiyonel: karta tıklayınca detay aç
+                       userId                  // 🎯 Film listeleri için gerekli
+                   }) => {
     const [isHovered, setIsHovered] = useState(false);
     const [showListPicker, setShowListPicker] = useState(false);
 
     // 👍👎 reaksiyon (like | dislike | null)
     const [reaction, setReaction] = useState(null);
 
-    // UI durumları (parent verir ise onu dinleriz; vermezse local state)
-    const [watchedUI, setWatchedUI] = useState(
-        Boolean(isWatched ?? movie?.isWatched ?? movie?.watched)
-    );
-    const [wishlistUI, setWishlistUI] = useState(
-        Boolean(isInWishlist ?? movie?.isInWishlist ?? movie?.wishlisted)
-    );
+    // UI durumlarını parent güncelliyorsa onu dinle
+    const [watchedUI, setWatchedUI] = useState(Boolean(isWatched ?? movie?.isWatched ?? movie?.watched));
+    const [wishlistUI, setWishlistUI] = useState(Boolean(isInWishlist ?? movie?.isInWishlist ?? movie?.wishlisted));
 
     useEffect(() => {
         if (typeof isWatched === "boolean") setWatchedUI(isWatched);
@@ -44,24 +40,44 @@ export default function MovieCard({
         if (typeof isInWishlist === "boolean") setWishlistUI(isInWishlist);
     }, [isInWishlist]);
 
-    // ✅ Poster'i tüm olası alanlardan toparla
-    const poster = pickPoster(movie);
-    const title =
-        movie?.title ||
-        movie?.name ||
-        movie?.original_title ||
-        movie?.originalName ||
-        "Untitled";
+    // ---- Normalizasyonlar ----
+    const title = useMemo(() =>
+            (movie?.title || movie?.name || movie?.original_title || movie?.originalName || "Untitled").trim()
+        , [movie]);
+
+    const poster = useMemo(() => pickPoster(movie), [movie]);
+
+    // TMDb / DB id tespiti: ListPicker doğru endpointi seçsin
+    const tmdbId = useMemo(() => (
+        movie?.tmdbId ?? movie?.tmdb_id ?? movie?.id // TMDb yanıtında id genelde TMDb id’dir
+    ), [movie]);
+
+    const dbMovieId = useMemo(() => (
+        movie?.movieId ?? (movie?.movie_id ?? null)   // varsa projedeki iç DB alanı
+    ), [movie]);
+
+    const cameFromTmdb = useMemo(() => {
+        if (typeof fromTmdb === "boolean") return fromTmdb;
+        // TMDb’den geldiğini anlamanın güvenli yolları
+        return Boolean(
+            tmdbId ||
+            movie?.backdrop_path ||
+            movie?.poster_path ||
+            movie?.first_air_date ||
+            movie?.release_date
+        );
+    }, [fromTmdb, tmdbId, movie]);
 
     // Hover'da görünen “+ Ekle” butonu
-    const addBtnStyle = {
+    const addBtnStyle = useMemo(() => ({
         ...addToListHoverBtnStyle,
         opacity: isHovered ? 1 : 0,
-        pointerEvents: isHovered ? "auto" : "none"
-    };
+        pointerEvents: isHovered ? "auto" : "none",
+        zIndex: 6
+    }), [isHovered]);
 
-    /* ------------- 👍👎 Reaksiyon barı (hover'da sağ üst) ------------- */
-    const reactionBarStyle = {
+    // 👍👎 Reaksiyon barı (hover'da sağ üst)
+    const reactionBarStyle = useMemo(() => ({
         position: "absolute",
         top: 8,
         right: 8,
@@ -76,7 +92,7 @@ export default function MovieCard({
         opacity: isHovered ? 1 : 0,
         pointerEvents: isHovered ? "auto" : "none",
         zIndex: 7
-    };
+    }), [isHovered]);
 
     const baseReactBtn = {
         width: 28,
@@ -89,7 +105,7 @@ export default function MovieCard({
         justifyContent: "center",
         color: "rgba(255,255,255,0.85)",
         cursor: "pointer",
-        transition: "transform 120ms ease, background 160ms ease, color 160ms ease, border-color 160ms ease",
+        transition: "transform 120ms ease, background 160ms ease, color 160ms ease, border-color 160ms ease"
     };
 
     const likeActive = reaction === "like";
@@ -99,13 +115,13 @@ export default function MovieCard({
         ...baseReactBtn,
         ...(likeActive
             ? { background: "rgba(34,197,94,0.18)", borderColor: "rgba(34,197,94,0.5)", color: "#22c55e" }
-            : {}),
+            : {})
     };
     const dislikeBtnStyle = {
         ...baseReactBtn,
         ...(dislikeActive
             ? { background: "rgba(239,68,68,0.18)", borderColor: "rgba(239,68,68,0.5)", color: "#ef4444" }
-            : {}),
+            : {})
     };
 
     const handleLike = (e) => {
@@ -116,22 +132,30 @@ export default function MovieCard({
         e.stopPropagation();
         setReaction((r) => (r === "dislike" ? null : "dislike"));
     };
-    /* ------------------------------------------------------------------ */
+
+    const handleCardKeyDown = (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onOpenDetail?.(movie, cameFromTmdb);
+        }
+    };
 
     return (
         <div style={movieCardWrapStyle}>
             {/* Poster kartı */}
             <div
                 style={movieCardStyle}
-                onClick={() => onOpenDetail?.(movie, fromTmdb)}
+                onClick={() => onOpenDetail?.(movie, cameFromTmdb)}
+                onKeyDown={handleCardKeyDown}
+                tabIndex={0}
                 onMouseEnter={() => setIsHovered(true)}
                 onMouseLeave={() => {
                     setIsHovered(false);
-                    // Liste paneli açık kalsın istiyorsan bu satırı kaldır.
+                    // ListPicker’ı hover dışına çıkınca kapatmak istemiyorsan alttaki satırı kapalı tut.
                     // setShowListPicker(false);
                 }}
                 role="button"
-                aria-label={`Open details for ${title}`}
+                aria-label={`Detay: ${title}`}
             >
                 <div style={moviePosterStyle}>
                     {poster ? (
@@ -140,20 +164,18 @@ export default function MovieCard({
                             alt={title}
                             style={{ width: "100%", height: "100%", objectFit: "cover" }}
                             onError={(e) => {
-                                // görsel bozuksa graceful fallback
-                                e.currentTarget.style.display = "none";
+                                e.currentTarget.style.display = "none"; // bozuk görseli gizle
                             }}
                         />
                     ) : (
-                        <div style={{ color: "rgba(255,255,255,0.5)", textAlign: "center" }}>
-                            No Image
-                        </div>
+                        <div style={{ color: "rgba(255,255,255,0.5)", textAlign: "center" }}>No Image</div>
                     )}
                 </div>
 
-                {/* Hover'da görünen 👍👎 reaksiyon barı (sağ üst) */}
+                {/* Hover'da görünen 👍👎 reaksiyon barı */}
                 <div style={reactionBarStyle} aria-label="Beğeni seçenekleri">
                     <button
+                        type="button"
                         aria-label="Beğen"
                         style={likeBtnStyle}
                         onClick={handleLike}
@@ -162,6 +184,7 @@ export default function MovieCard({
                         <ThumbsUp size={16} />
                     </button>
                     <button
+                        type="button"
                         aria-label="Beğenme"
                         style={dislikeBtnStyle}
                         onClick={handleDislike}
@@ -173,12 +196,14 @@ export default function MovieCard({
 
                 {/* Hover'da görünen “+ Ekle” tetikleyici — sadece ListPicker aç */}
                 <button
+                    type="button"
                     style={addBtnStyle}
                     onClick={(e) => {
                         e.stopPropagation();
-                        setShowListPicker(true); //
+                        setShowListPicker(true);
                     }}
                     aria-haspopup="dialog"
+                    aria-label="Listeye ekle"
                 >
                     + Ekle
                 </button>
@@ -187,7 +212,6 @@ export default function MovieCard({
                 <div style={statusWrapStyle}>
                     {watchedUI && (
                         <div style={statusBadgeStyle} title="İzledim">
-                            {/* 👁️ Eye SVG */}
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
                                 <path
                                     d="M12 5C7 5 2.7 8.1 1 12c1.7 3.9 6 7 11 7s9.3-3.1 11-7c-1.7-3.9-6-7-11-7Z"
@@ -203,7 +227,6 @@ export default function MovieCard({
 
                 {wishlistUI && (
                     <div style={ribbonWrapStyle} title="İstek Listesinde">
-                        {/* 🔖 Ribbon SVG */}
                         <svg width="24" height="36" viewBox="0 0 24 36" fill="none" aria-hidden>
                             <path d="M0 0h24v26L12 20 0 26V0Z" fill="#dc2626" />
                             <rect x="0" y="0" width="24" height="3" fill="rgba(255,255,255,0.18)" />
@@ -211,13 +234,16 @@ export default function MovieCard({
                     </div>
                 )}
 
-                {/* 🎞️ Film Listesi paneli (sadece bu açılıyor) */}
+                {/* 🎞️ Film Listesi paneli (yalnızca bu açılır) */}
                 <ListPicker
                     open={showListPicker}
                     onClose={() => setShowListPicker(false)}
                     movie={movie}
                     userId={userId}
-                    fromTmdb={fromTmdb}
+                    fromTmdb={cameFromTmdb}
+                    // 🔽 ListPicker içinde doğru endpoint’i seçebilmesi için yardımcı bilgi
+                    tmdbId={tmdbId || undefined}
+                    dbMovieId={dbMovieId || undefined}
                 />
             </div>
 
@@ -227,4 +253,6 @@ export default function MovieCard({
             </div>
         </div>
     );
-}
+};
+
+export default memo(MovieCard);

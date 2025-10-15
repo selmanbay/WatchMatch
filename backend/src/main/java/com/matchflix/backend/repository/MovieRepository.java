@@ -45,7 +45,16 @@ public interface MovieRepository extends JpaRepository<Movie, Long> {
 
     Optional<Movie> findByTmdbId(Long tmdbId);
 
-    List<Movie> findByTmdbIdIn(Collection<Long> tmdbIds);
+    // 🆕: Kullanıcının sahip olduğu listelerdeki filmlerden seed TMDb id'leri (distinct)
+    @Query("""
+           select distinct m.tmdbId
+           from MovieList ml
+           join ml.movies m
+           where ml.user.id = :userId
+             and m.tmdbId is not null
+           """)
+    List<Long> findSeedTmdbIdsByUser(@Param("userId") Long userId, Pageable pageable);
+
     @Query("""
         select m from Movie m
         left join fetch m.genres

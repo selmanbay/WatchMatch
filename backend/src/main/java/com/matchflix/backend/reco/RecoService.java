@@ -1,19 +1,21 @@
+// src/main/java/com/matchflix/backend/reco/RecoService.java
 package com.matchflix.backend.reco;
 
 import com.matchflix.backend.dto.MovieDto;
-import com.matchflix.backend.mapper.MovieMapper;               // statik util sınıfın
+import com.matchflix.backend.mapper.MovieMapper;
 import com.matchflix.backend.ml.MochinefClient;
 import com.matchflix.backend.ml.MochinefClient.RecoItem;
+import com.matchflix.backend.ml.MochinefClient.MovieSearchResult;
 import com.matchflix.backend.model.Movie;
 import com.matchflix.backend.repository.MovieRepository;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 @Service
 public class RecoService {
@@ -22,7 +24,7 @@ public class RecoService {
     private final TmdbResolverService resolver;
     private final MovieRepository movieRepo;
 
-    @Value("${reco.userSalt}")
+    @Value("${reco.userSalt:wm-dev-salt}")
     private String userSalt;
 
     public RecoService(MochinefClient mochi,
@@ -33,13 +35,22 @@ public class RecoService {
         this.movieRepo = movieRepo;
     }
 
-    /** Kişisel öneri akışı */
+    /** Kişisel öneri akışı: KULLANICININ LİSTELERİNDEN seed → FastAPI */
     public List<MovieDto> personal(Long userId, int limit) {
         String userExtId = hashUser(userId);
+        int fetch = Math.max(limit * 3, 60);
 
-        // Biraz fazla çekip (gerekirse) TMDb'ye resolve edeceğiz
-        List<RecoItem> raw = mochi.getRecommendations(userExtId, Math.max(limit * 2, 40));
+        // 1) Kullanıcının listelerinden 3-5 seed TMDb id çek
+        List<Long> userSeeds = movieRepo.findSeedTmdbIdsByUser(userId, PageRequest.of(0, 5));
 
+        // 2) Seed varsa seed'li çağrı; yoksa global fallback
+        List<RecoItem> raw = !userSeeds.isEmpty()
+                ? mochi.getRecommendationsWithSeeds(userSeeds, fetch)
+                : mochi.getRecommendations(userExtId, fetch);
+
+        if (raw == null || raw.isEmpty()) return List.of();
+
+        // 3) TMDb id çöz (FastAPI zaten id=tmdb_id döndürüyor; yine de koruyalım)
         List<Long> tmdbIds = raw.stream()
                 .map(this::ensureTmdbId)
                 .flatMap(Optional::stream)
@@ -47,7 +58,9 @@ public class RecoService {
                 .limit(limit)
                 .toList();
 
-        // DB'den çek, sırayı koru
+        if (tmdbIds.isEmpty()) return List.of();
+
+        // 4) DB'den sırayla çek → DTO
         Map<Long, Movie> dbMap = movieRepo.findByTmdbIdIn(tmdbIds).stream()
                 .collect(Collectors.toMap(
                         Movie::getTmdbId, m -> m, (a, b) -> a, LinkedHashMap::new
@@ -56,15 +69,16 @@ public class RecoService {
         return tmdbIds.stream()
                 .map(dbMap::get)
                 .filter(Objects::nonNull)
-                .map(MovieMapper::toDto)  // statik util
+                .map(MovieMapper::toDto)
                 .toList();
     }
 
-    public List<MochinefClient.MovieSearchResult> searchByTitle(String query) {
+    /** Arama (mochinef /movies/search passthrough) */
+    public List<MovieSearchResult> searchByTitle(String query) {
         return mochi.searchMovieByTitle(query);
     }
 
-    /** İki kullanıcı için matching öneri akışı */
+    /** İki kullanıcı için matching öneri */
     public List<MovieDto> match(Long userA, Long userB, int limit) {
         var recA = mochi.getRecommendations(hashUser(userA), Math.max(limit * 3, 60));
         var recB = mochi.getRecommendations(hashUser(userB), Math.max(limit * 3, 60));
@@ -72,7 +86,6 @@ public class RecoService {
         Map<Long, Double> aMap = toTmdbScoreMap(recA);
         Map<Long, Double> bMap = toTmdbScoreMap(recB);
 
-        // 1) Kesişim: ikisine birden önerilmiş olanlara bonus
         Map<Long, Double> inter = aMap.keySet().stream()
                 .filter(bMap::containsKey)
                 .collect(Collectors.toMap(
@@ -82,23 +95,42 @@ public class RecoService {
                         LinkedHashMap::new
                 ));
 
-        // 2) Birleşim: kesişimde olmayanlar için ağırlıklı skor
         Map<Long, Double> union = new LinkedHashMap<>();
-        Stream.concat(aMap.keySet().stream(), bMap.keySet().stream())
-                .distinct()
-                .filter(k -> !inter.containsKey(k))
-                .forEach(k -> {
-                    double sa = aMap.getOrDefault(k, 0.0);
-                    double sb = bMap.getOrDefault(k, 0.0);
-                    union.put(k, 0.7 * Math.max(sa, sb) + 0.3 * ((sa + sb) / 2.0));
-                });
 
-        // 3) Sırala, limit uygula
-        List<Long> ranked = Stream.concat(inter.entrySet().stream(), union.entrySet().stream())
+// önce tüm keyleri ekle
+        aMap.keySet().forEach(k -> union.put(k, 0.0));
+        bMap.keySet().forEach(k -> union.putIfAbsent(k, 0.0));
+
+// inter’de olanları çıkar
+        union.keySet().removeAll(inter.keySet());
+
+// skorları hesapla
+        union.replaceAll((k, v) -> {
+            double sa = aMap.getOrDefault(k, 0.0);
+            double sb = bMap.getOrDefault(k, 0.0);
+            return 0.7 * Math.max(sa, sb) + 0.3 * ((sa + sb) / 2.0);
+        });
+
+// inter ve union'u ayrı ayrı sırala → key listeleri
+        List<Long> interRanked = inter.entrySet().stream()
                 .sorted(Map.Entry.<Long, Double>comparingByValue().reversed())
-                .limit(limit)
                 .map(Map.Entry::getKey)
                 .toList();
+
+        List<Long> unionRanked = union.entrySet().stream()
+                .sorted(Map.Entry.<Long, Double>comparingByValue().reversed())
+                .map(Map.Entry::getKey)
+                .toList();
+
+// birleştir
+        List<Long> ranked = new ArrayList<>(interRanked.size() + unionRanked.size());
+        ranked.addAll(interRanked);
+        ranked.addAll(unionRanked);
+
+// limit uygula (yeni liste oluştur ki subList view olmasın)
+        if (ranked.size() > limit) {
+            ranked = new ArrayList<>(ranked.subList(0, limit));
+        }
 
         Map<Long, Movie> dbMap = movieRepo.findByTmdbIdIn(ranked).stream()
                 .collect(Collectors.toMap(
@@ -108,7 +140,7 @@ public class RecoService {
         return ranked.stream()
                 .map(dbMap::get)
                 .filter(Objects::nonNull)
-                .map(MovieMapper::toDto) // statik util
+                .map(MovieMapper::toDto)
                 .toList();
     }
 
@@ -119,16 +151,19 @@ public class RecoService {
         return resolver.resolveToTmdbId(it.title(), it.year(), it.original_language());
     }
 
-    /** Mochinef item listesini tmdb_id -> skor map'ine indirger (resolve içerir) */
+    /** Listeyi tmdb_id -> skor map'ine indirger (sıra korunur) */
     private Map<Long, Double> toTmdbScoreMap(List<RecoItem> items) {
         Map<Long, Double> map = new LinkedHashMap<>();
-        if (items == null) return map;
+        if (items == null || items.isEmpty()) return map;
         for (RecoItem it : items) {
-            Optional<Long> maybe = ensureTmdbId(it);
-            if (maybe.isPresent()) {
-                Long id = maybe.get();
-                map.putIfAbsent(id, it.score() != null ? it.score() : 0.5); // default skor
+            if (it == null) continue;
+            Long id = it.tmdb_id();
+            if (id == null) {
+                Optional<Long> maybe = ensureTmdbId(it);
+                if (maybe.isEmpty()) continue;
+                id = maybe.get();
             }
+            map.putIfAbsent(id, it.score() != null ? it.score() : 0.5);
         }
         return map;
     }
@@ -143,7 +178,6 @@ public class RecoService {
             for (byte b : dig) sb.append(String.format("%02x", b));
             return sb.toString();
         } catch (Exception e) {
-            // Development fallback
             return "wm:" + uid;
         }
     }

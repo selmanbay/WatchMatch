@@ -10,7 +10,8 @@
     "web-vitals": "^5.1.0"
   },
   "devDependencies": {
-    "@craco/craco": "^7.1.0"
+    "@craco/craco": "^7.1.0",
+    "eslint-plugin-react-hooks": "^5.2.0"
   },
   "scripts": {
     "start": "craco start",

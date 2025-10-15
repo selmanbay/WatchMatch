@@ -13,7 +13,7 @@ import java.net.URI;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/tmdb")
+@RequestMapping("/api/tmdb-proxy")
 @RequiredArgsConstructor
 @CrossOrigin(origins = "http://localhost:3000") // gerekiyorsa
 public class TmdbProxyController {
