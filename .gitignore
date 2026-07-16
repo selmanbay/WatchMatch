@@ -1,0 +1,29 @@
+# Secrets
+.env
+.env.local
+
+# Dependencies
+node_modules/
+
+# Build output
+target/
+build/
+dist/
+frontend/build/
+
+# Uploads (runtime data)
+uploads/
+
+# IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*

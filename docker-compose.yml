@@ -3,9 +3,9 @@ services:
     image: postgres:15
     container_name: matchflix-postgres
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: 123456
-      POSTGRES_DB: matchflixdb
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-matchflixdb}
     ports:
       - "5434:5432"
     volumes:
@@ -16,21 +16,22 @@ services:
       timeout: 3s
       retries: 10
     restart: unless-stopped
-
   backend:
     build:
-      context: .            # kökten al
+      context: .
       dockerfile: Dockerfile
     container_name: matchflix-backend
     ports:
       - "8080:8080"
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/matchflixdb
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: 123456
-      TMDB_API_KEY: 36264a0cf1b793ad8700a234e0a7166b
-      JWT_SECRET: B4HkDK1Kc2eHJ5BBeIdDH9Nc4WXKULmB0efDBLMFGT7L/Ol3ovlgCaAv8TzHo7/b
-      JWT_EXPIRATION_MS: 604800000
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-matchflixdb}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      TMDB_API_KEY: ${TMDB_API_KEY:?set TMDB_API_KEY in .env}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-604800000}
+      RECO_USER_SALT: ${RECO_USER_SALT:?set RECO_USER_SALT in .env}
+      ML_BASE_URL: ${ML_BASE_URL:-http://host.docker.internal:8000}
       APP_UPLOAD_DIR: /app/uploads
     volumes:
       - ./uploads:/app/uploads

@@ -3,7 +3,11 @@
 // Kullanım:  export TMDB_API_KEY=XXX && node pull_tmdb_ids.js > tmdb_ids_extra.js
 
 
-API_KEY = "36264a0cf1b793ad8700a234e0a7166b";
+const API_KEY = process.env.TMDB_API_KEY;
+if (!API_KEY) {
+    console.error("TMDB_API_KEY is not set. Run:  export TMDB_API_KEY=xxx && node loader.js");
+    process.exit(1);
+}
 
 // ---- BURAYA ELİNDEKİ MEVCUT ID LİSTENİ YAPIŞTIR ----
 // (Aşağıdaki örnek 10 ID sadece placeholder. Sen mesajındaki büyük listeyi buraya koy.)
